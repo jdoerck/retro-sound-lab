@@ -1,0 +1,442 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Horizon Warden</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Martian+Mono:wght@400;600;800&family=Tektur:wght@700;900&display=swap">
+<style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;font:14px/1.4 system-ui,-apple-system,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style>
+</head>
+<body>
+<script>/* Local shim: inside claude.ai artifacts window.claude.use() provides capabilities.
+Outside it, give the page a 'downloads' capability that saves via a normal link; 'sample' (Claude calls) stays unavailable,
+so pages fall back to their built-in rules. */
+if(!window.claude){window.claude={use:async n=>n==='downloads'?{save:async({filename,data})=>{const b=data instanceof Blob?data:new Blob([data]);const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=filename;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),4000);return{status:'saved'}}}:null}}</script>
+<style>
+/* Layout: full-bleed phosphor playfield, letterboxed canvas; touch pad sits below it in portrait and floats over it in landscape */
+:root{
+  --void:#06050d; --deep:#0f0b1f; --line:#2b2452; --ink:#ece9ff; --dim:#8f89bd;
+  --amber:#ff9a3c; --cyan:#5ef2ff; --magenta:#ff3fd2; --lime:#7dff6a;
+  --display:"Tektur","Arial Narrow",system-ui,sans-serif;
+  --mono:"Martian Mono",ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  color-scheme:dark;
+}
+html,body{height:100%}
+body{background:var(--void);color:var(--ink);font-family:var(--mono);overflow:hidden;-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent}
+#app{position:relative;height:100%;display:flex;flex-direction:column}
+#stage{position:relative;flex:1;min-height:0;touch-action:none}
+#cv{position:absolute;left:0;display:block}
+#ov{position:absolute;inset:0;display:flex;overflow:auto;background:rgba(6,5,13,.78);
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:16px}
+.card{width:100%;max-width:600px;margin:auto;display:grid;gap:16px}
+h1{margin:0;font-family:var(--display);font-weight:900;text-transform:uppercase;letter-spacing:.03em;line-height:.92;
+  font-size:clamp(34px,8vw,64px);text-wrap:balance;
+  background:linear-gradient(180deg,var(--ink) 0 48%,var(--amber) 52% 100%);-webkit-background-clip:text;background-clip:text;color:transparent}
+.tag{margin:0;color:var(--dim);font-size:12px;line-height:1.7;max-width:56ch}
+#result{margin:0;font-size:13px;color:var(--cyan);letter-spacing:.04em}
+.label{font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--dim);margin:0 0 8px}
+.roster{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:8px 16px;margin:0;padding:0;list-style:none}
+.roster li{display:flex;align-items:center;gap:10px;font-size:11px;line-height:1.4;min-width:0}
+.roster img{width:36px;height:30px;object-fit:contain;image-rendering:pixelated;flex:none}
+.roster b{display:block;color:var(--ink);font-weight:600}
+.roster span{color:var(--dim)}
+.keys{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;margin:0;font-size:11px}
+.keys dt{color:var(--amber);white-space:nowrap}
+.keys dd{margin:0;color:var(--dim)}
+.tc{display:none}
+.row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+button{font-family:var(--mono);cursor:pointer}
+button:focus-visible{outline:2px solid var(--cyan);outline-offset:3px}
+#go{font-family:var(--display);font-weight:700;font-size:18px;letter-spacing:.12em;text-transform:uppercase;
+  background:var(--amber);color:var(--void);border:0;padding:12px 28px;border-radius:2px;box-shadow:0 0 0 1px var(--amber),0 0 24px rgba(255,154,60,.45)}
+#go:hover{filter:brightness(1.1)}
+.ghost{background:transparent;color:var(--dim);border:1px solid var(--line);padding:10px 14px;font-size:11px;letter-spacing:.08em;border-radius:2px}
+#hi{font-size:11px;color:var(--dim);font-variant-numeric:tabular-nums}
+
+#pad{display:none;align-items:center;justify-content:space-between;gap:12px;touch-action:none;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:12px 18px;
+  background:var(--deep);border-top:1px solid var(--line)}
+#stick{position:relative;width:132px;height:132px;border-radius:50%;border:1px solid var(--line);background:radial-gradient(circle,rgba(94,242,255,.08),transparent 70%);flex:none;touch-action:none}
+#stick::before,#stick::after{content:"";position:absolute;background:var(--line)}
+#stick::before{left:50%;top:14px;bottom:14px;width:1px}
+#stick::after{top:50%;left:14px;right:14px;height:1px}
+#knob{position:absolute;left:50%;top:50%;width:52px;height:52px;margin:-26px 0 0 -26px;border-radius:50%;background:var(--cyan);opacity:.85;box-shadow:0 0 18px rgba(94,242,255,.6);pointer-events:none;z-index:1}
+.mid{display:flex;flex-direction:column;gap:8px}
+.mid button{background:transparent;border:1px solid var(--line);color:var(--dim);font-size:10px;letter-spacing:.1em;text-transform:uppercase;padding:8px 10px;border-radius:2px}
+.btns{display:grid;grid-template-columns:auto auto;grid-template-rows:auto auto;gap:10px;align-items:center;flex:none}
+.btns button{border-radius:50%;border:1px solid;font-size:10px;letter-spacing:.1em;text-transform:uppercase;touch-action:none;font-weight:600}
+#bFire{grid-row:1/3;grid-column:2;width:88px;height:88px;background:rgba(255,63,210,.18);border-color:var(--magenta);color:var(--magenta)}
+#bBomb,#bWarp{width:58px;height:58px;background:rgba(255,154,60,.1);border-color:var(--amber);color:var(--amber)}
+#bWarp{background:rgba(94,242,255,.08);border-color:var(--cyan);color:var(--cyan)}
+.btns button.on{filter:brightness(1.6)}
+
+@media (pointer:coarse){
+  #pad{display:flex}
+  .kb{display:none}.tc{display:grid}
+}
+@media (pointer:coarse) and (orientation:landscape){
+  #pad{position:absolute;left:0;right:0;bottom:0;background:transparent;border:0;pointer-events:none;padding-block:8px 12px}
+  #pad>*{pointer-events:auto}
+  #stick{width:112px;height:112px;opacity:.75}
+  .btns{opacity:.8}
+}
+@media (prefers-reduced-motion:reduce){#go{box-shadow:none}}
+</style>
+
+<div id="app">
+  <div id="stage">
+    <canvas id="cv" aria-label="Game screen"></canvas>
+    <div id="ov">
+      <div class="card">
+        <h1>Horizon<br>Warden</h1>
+        <p id="result" hidden></p>
+        <p class="tag">Patrol a wraparound world. Lifters descend to snatch your settlers and haul them into orbit, where they come back as mutants. Shoot the lifter, catch the falling settler, and set them down safely. Lose every settler and the planet goes with them.</p>
+        <div>
+          <p class="label">Threats</p>
+          <ul class="roster" id="roster"></ul>
+        </div>
+        <div>
+          <p class="label">Controls</p>
+          <dl class="keys kb">
+            <dt>← →</dt><dd>Thrust and turn</dd>
+            <dt>↑ ↓</dt><dd>Climb and dive</dd>
+            <dt>Space</dt><dd>Fire laser</dd>
+            <dt>B</dt><dd>Smart bomb (clears the screen)</dd>
+            <dt>H</dt><dd>Hyperspace jump</dd>
+            <dt>P · M</dt><dd>Pause · sound</dd>
+          </dl>
+          <dl class="keys tc">
+            <dt>Stick</dt><dd>Left/right thrusts, up/down changes altitude</dd>
+            <dt>Fire</dt><dd>Hold for continuous laser</dd>
+            <dt>Bomb</dt><dd>Destroys everything on screen</dd>
+            <dt>Warp</dt><dd>Hyperspace to a random spot</dd>
+          </dl>
+        </div>
+        <div class="row">
+          <button id="go" type="button">Launch</button>
+          <button id="snd" class="ghost" type="button">Sound on</button>
+          <span id="hi">Best 000000</span>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div id="pad">
+    <div id="stick"><div id="knob"></div></div>
+    <div class="mid"><button id="bPause" type="button">Pause</button><button id="bMute" type="button">Sound</button></div>
+    <div class="btns">
+      <button id="bWarp" type="button">Warp</button>
+      <button id="bFire" type="button">Fire</button>
+      <button id="bBomb" type="button">Bomb</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(()=>{
+const $=s=>document.querySelector(s);
+const WW=3200,H=270,TOP=38,GROUND=264,CELL=1.7;
+let W=360,scale=1;
+const stage=$('#stage'),cv=$('#cv'),ctx=cv.getContext('2d');
+
+/* ---------- palette & sprites ---------- */
+const PAL={c:'#5ef2ff',w:'#ffffff',m:'#ff3fd2',g:'#7dff6a',y:'#ffe04a',r:'#ff4a5a',p:'#b06bff',o:'#ff9a3c',b:'#4a7bff',s:'#9dffcf'};
+const ROWS={
+ ship:["cc..........","ccc.........","cccccccww...","bcccccccccww","ccccc.......","cc.........."],
+ lifter:["...yyy...",".ggggggg.","gg.g.g.gg",".ggggggg.","..g...g..",".g.....g.","g.......g"],
+ hunter:["r...p...r",".r.ppp.r.","..rrrrr..","pprwrwrpp","..rrrrr..",".r.....r.","r.......r"],
+ layer:["..oooo..",".oyyyyo.","oyobboyo","oyobboyo",".oyyyyo.","..oooo.."],
+ pod:["p..p..p",".prprp.","..rrr..","pprwrpp","..rrr..",".prprp.","p..p..p"],
+ swarm:[".r.","ryr",".r."],
+ stalker:[".gggggggg.","gwgwgwgwgg",".gggggggg.","..g....g.."],
+ settler:[".s.","sss",".s.","sws",".s.","s.s","s.s"]
+};
+function mk(rows,flip,px=1){const h=rows.length,w=rows[0].length,c=document.createElement('canvas');c.width=w*px;c.height=h*px;const x=c.getContext('2d');
+ rows.forEach((r,j)=>[...r].forEach((ch,i)=>{if(ch!=='.'){x.fillStyle=PAL[ch];x.fillRect((flip?w-1-i:i)*px,j*px,px,px)}}));return c}
+const SP={};for(const k in ROWS){SP[k]=mk(ROWS[k],false)}
+SP.shipL=mk(ROWS.ship,true);
+const TCOL={lifter:'#7dff6a',hunter:'#ff4a5a',layer:'#ff9a3c',pod:'#b06bff',swarm:'#ff4a5a',stalker:'#7dff6a'};
+const BOOM={lifter:['#7dff6a','#ffe04a'],hunter:['#ff4a5a','#b06bff'],layer:['#ff9a3c','#ffe04a','#4a7bff'],pod:['#b06bff','#ff4a5a','#fff'],swarm:['#ff4a5a','#ffe04a'],stalker:['#7dff6a','#fff']};
+const PTS={lifter:150,hunter:150,layer:250,pod:1000,swarm:150,stalker:200};
+
+// roster for title card
+[['lifter','Lifter','150 · abducts settlers'],['hunter','Mutant','150 · lifter that reached orbit'],['layer','Mine layer','250 · seeds drifting mines'],['pod','Pod','1000 · bursts into swarmers'],['swarm','Swarmer','150 · fast and erratic'],['settler','Settler','500 catch · 500 landing']]
+.forEach(([k,n,d])=>{const li=document.createElement('li');const im=new Image();im.src=mk(ROWS[k],false,6).toDataURL();im.alt='';li.append(im);
+ const t=document.createElement('div');t.innerHTML=`<b>${n}</b><span>${d}</span>`;t.style.minWidth='0';li.append(t);$('#roster').append(li)});
+
+/* ---------- helpers ---------- */
+const mod=x=>((x%WW)+WW)%WW;
+const wd=d=>{d=((d%WW)+WW)%WW;return d>=WW/2?d-WW:d};
+const R=Math.random, clamp=(v,a,b)=>v<a?a:v>b?b:v;
+
+/* ---------- terrain ---------- */
+const TS=16,TN=WW/TS,terr=new Float32Array(TN);
+function genTerrain(){let h=24,v=0;for(let i=0;i<TN;i++){v=clamp(v+(R()-.5)*4,-5,5);h+=v;if(h<6){h=6;v=Math.abs(v)}if(h>72){h=72;v=-Math.abs(v)}terr[i]=h}
+ for(let i=TN-30;i<TN;i++){const t=(i-(TN-30))/30;terr[i]=terr[i]*(1-t)+terr[0]*t}}
+function groundAt(x){x=mod(x);const f=x/TS,i=Math.floor(f)%TN,t=f-Math.floor(f);const a=terr[i],b=terr[(i+1)%TN];return GROUND-(a+(b-a)*t)}
+
+/* ---------- audio ---------- */
+let AC=null,muted=false,NB=null;
+function audio(){if(AC)return;try{AC=new (window.AudioContext||window.webkitAudioContext)();NB=AC.createBuffer(1,AC.sampleRate,AC.sampleRate);const d=NB.getChannelData(0);for(let i=0;i<d.length;i++)d[i]=R()*2-1}catch(e){AC=null}}
+function tone(f0,f1,dur,type='square',vol=.06,delay=0){if(!AC||muted)return;const t=AC.currentTime+delay,o=AC.createOscillator(),g=AC.createGain();o.type=type;o.frequency.setValueAtTime(f0,t);o.frequency.exponentialRampToValueAtTime(Math.max(20,f1),t+dur);g.gain.setValueAtTime(vol,t);g.gain.exponentialRampToValueAtTime(.0001,t+dur);o.connect(g).connect(AC.destination);o.start(t);o.stop(t+dur+.02)}
+function noise(dur,vol,f){if(!AC||muted)return;const t=AC.currentTime,s=AC.createBufferSource(),fl=AC.createBiquadFilter(),g=AC.createGain();s.buffer=NB;s.loop=true;fl.type='lowpass';fl.frequency.setValueAtTime(f,t);fl.frequency.exponentialRampToValueAtTime(80,t+dur);g.gain.setValueAtTime(vol,t);g.gain.exponentialRampToValueAtTime(.0001,t+dur);s.connect(fl).connect(g).connect(AC.destination);s.start(t);s.stop(t+dur+.02)}
+const sfx={
+ laser:()=>tone(1500,280,.11,'square',.035),
+ shot:()=>tone(520,240,.07,'square',.015),
+ boom:()=>noise(.35,.22,1100),
+ die:()=>{noise(1.3,.4,700);tone(380,40,1.1,'sawtooth',.08)},
+ bomb:()=>{noise(.9,.5,2600);tone(90,30,.8,'sine',.3)},
+ catch:()=>tone(600,1300,.16,'triangle',.12),
+ land:()=>[523,659,784,1047].forEach((f,i)=>tone(f,f,.12,'triangle',.1,i*.07)),
+ sos:()=>{tone(900,1400,.22,'triangle',.06);tone(900,1400,.22,'triangle',.06,.26)},
+ warp:()=>tone(160,2400,.45,'sine',.12),
+ mutate:()=>tone(320,70,.45,'sawtooth',.07),
+ extra:()=>[784,988,1175,1568].forEach((f,i)=>tone(f,f,.1,'square',.06,i*.09)),
+ lost:()=>{noise(2,.5,1500);tone(200,30,2,'sawtooth',.12)}
+};
+
+/* ---------- state ---------- */
+const P={x:0,y:120,vx:0,face:1,sx:100,cool:0,inv:0,thr:false};
+let G,enemies,settlers,lasers,bullets,mines,parts,pops,camX=0,frame=0;
+let hi=0;try{hi=+localStorage.getItem('hw-hi')||0}catch(e){}
+const pad6=n=>String(n).padStart(6,'0');
+$('#hi').textContent='Best '+pad6(hi);
+function resetWorld(){G={mode:'title',score:0,lives:3,bombs:3,wave:0,next:10000,paused:false,planetDead:false,waveT:0,queue:0,spawnT:0,t2:0,flash:0,shake:0,msg:'',sub:'',msgT:0};
+ enemies=[];settlers=[];lasers=[];bullets=[];mines=[];parts=[];pops=[]}
+resetWorld();genTerrain();
+const stars=Array.from({length:90},()=>({x:R()*2000,y:TOP+4+R()*(H-TOP-40),z:.1+R()*.4,c:R()<.15?'#ff9a3c':R()<.3?'#5ef2ff':'#8f89bd'}));
+
+/* ---------- input ---------- */
+const K={},T={};let bombE=false,warpE=false;
+const KEYMAP={ArrowUp:'up',KeyW:'up',ArrowDown:'down',KeyS:'down',ArrowLeft:'left',KeyA:'left',ArrowRight:'right',KeyD:'right',Space:'fire',KeyJ:'fire'};
+addEventListener('keydown',e=>{
+ if(KEYMAP[e.code]){K[KEYMAP[e.code]]=true;if(G.mode!=='title'&&G.mode!=='over'||e.code!=='Space')e.preventDefault()}
+ if(e.repeat)return;
+ if(e.code==='KeyB'||e.code==='KeyK')bombE=true;
+ if(e.code==='KeyH'||e.code==='KeyL')warpE=true;
+ if(e.code==='KeyP')togglePause();
+ if(e.code==='KeyM')toggleMute();
+ if((e.code==='Enter')&&(G.mode==='title'||G.mode==='over'))start();
+});
+addEventListener('keyup',e=>{if(KEYMAP[e.code])K[KEYMAP[e.code]]=false});
+addEventListener('blur',()=>{for(const k in K)K[k]=false;for(const k in T)T[k]=false});
+document.addEventListener('visibilitychange',()=>{if(document.hidden&&isPlaying()&&!G.paused)togglePause()});
+const isPlaying=()=>G.mode==='play'||G.mode==='dying'||G.mode==='clear';
+function togglePause(){if(!isPlaying())return;G.paused=!G.paused}
+function toggleMute(){muted=!muted;$('#snd').textContent=muted?'Sound off':'Sound on';$('#bMute').textContent=muted?'Muted':'Sound'}
+
+const stick=$('#stick'),knob=$('#knob');let sid=null;
+function stickMove(e){const r=stick.getBoundingClientRect();let dx=e.clientX-(r.left+r.width/2),dy=e.clientY-(r.top+r.height/2);const m=Math.hypot(dx,dy),lim=r.width*.32;if(m>lim){dx*=lim/m;dy*=lim/m}
+ knob.style.transform=`translate(${dx}px,${dy}px)`;const t=lim*.3;T.left=dx<-t;T.right=dx>t;T.up=dy<-t;T.down=dy>t}
+function stickEnd(e){if(e.pointerId!==sid)return;sid=null;knob.style.transform='';T.left=T.right=T.up=T.down=false}
+stick.addEventListener('pointerdown',e=>{sid=e.pointerId;try{stick.setPointerCapture(sid)}catch(_){}stickMove(e);e.preventDefault()});
+stick.addEventListener('pointermove',e=>{if(e.pointerId===sid)stickMove(e)});
+stick.addEventListener('pointerup',stickEnd);stick.addEventListener('pointercancel',stickEnd);
+function holdBtn(el,on,off){el.addEventListener('pointerdown',e=>{e.preventDefault();try{el.setPointerCapture(e.pointerId)}catch(_){}el.classList.add('on');on()});
+ const up=()=>{el.classList.remove('on');off&&off()};el.addEventListener('pointerup',up);el.addEventListener('pointercancel',up);el.addEventListener('contextmenu',e=>e.preventDefault())}
+holdBtn($('#bFire'),()=>T.fire=true,()=>T.fire=false);
+holdBtn($('#bBomb'),()=>bombE=true);
+holdBtn($('#bWarp'),()=>warpE=true);
+$('#bPause').addEventListener('click',togglePause);
+$('#bMute').addEventListener('click',toggleMute);
+$('#snd').addEventListener('click',toggleMute);
+$('#go').addEventListener('click',start);
+const inp=k=>K[k]||T[k];
+
+/* ---------- sizing ---------- */
+function resize(){const r=stage.getBoundingClientRect();if(!r.width||!r.height)return;const dpr=Math.min(window.devicePixelRatio||1,2);
+ scale=Math.min(r.height/H,r.width/360);W=r.width/scale;const ch=H*scale;
+ cv.style.width=r.width+'px';cv.style.height=ch+'px';cv.style.top=((r.height-ch)/2)+'px';
+ cv.width=Math.round(r.width*dpr);cv.height=Math.round(ch*dpr);ctx.setTransform(scale*dpr,0,0,scale*dpr,0,0);ctx.imageSmoothingEnabled=false}
+addEventListener('resize',resize);new ResizeObserver(resize).observe(stage);resize();
+
+/* ---------- game flow ---------- */
+function start(){audio();if(AC&&AC.state==='suspended')AC.resume();resetWorld();genTerrain();
+ P.x=WW/2;P.y=120;P.vx=0;P.face=1;P.sx=W*.28;P.inv=90;$('#ov').hidden=true;startWave();try{cv.focus()}catch(e){}}
+function makeSettlers(n){settlers=[];for(let i=0;i<n;i++){const x=mod((i+.2+R()*.6)*WW/n);settlers.push({x,y:groundAt(x)-6,state:'ground',vy:0,dir:R()<.5?-1:1,fy:0})}}
+function startWave(){G.wave++;G.waveT=0;G.spawnT=0;enemies=[];bullets=[];mines=[];lasers=[];
+ if(G.wave===1||(G.wave-1)%5===0){makeSettlers(10);G.planetDead=false}
+ settlers=settlers.filter(s=>s.state!=='dead');settlers.forEach(s=>{s.state='ground';s.vy=0;s.y=groundAt(s.x)-6});
+ G.queue=Math.min(10+(G.wave-1)*2,24);spawnLifters(5);
+ for(let i=0;i<Math.min(1+Math.floor(G.wave/2),5);i++)spawnEnemy('layer');
+ for(let i=0;i<Math.min(Math.max(G.wave-1,0),4);i++)spawnEnemy('pod');
+ G.mode='play';G.msg='WAVE '+G.wave;G.sub=G.planetDead?'No settlers left. Survive.':'Protect the settlers';G.msgT=150}
+function spawnLifters(n){n=Math.min(n,G.queue);for(let i=0;i<n;i++)spawnEnemy('lifter');G.queue-=n}
+function spawnEnemy(t,x,y){if(x===undefined)x=mod(P.x+W*.7+R()*(WW-W*1.4));if(y===undefined)y=TOP+20+R()*90;
+ if(t==='lifter'&&G.planetDead)t='hunter';
+ const e={t,x,y,vx:(R()<.5?-1:1)*(.4+R()*.6),vy:R()-.5,tm:R()*100|0,sp:40,baseY:y,carry:null,target:null,dead:false};enemies.push(e);return e}
+function addScore(n){G.score+=n;while(G.score>=G.next){G.lives++;G.bombs++;G.next+=10000;sfx.extra();pops.push({x:P.x,y:P.y-16,text:'BONUS SHIP',life:90,c:'#5ef2ff'})}}
+function boom(x,y,cols,n=18,sp=2.2){for(let i=0;i<n;i++){const a=R()*Math.PI*2,v=R()*sp;parts.push({x,y,vx:Math.cos(a)*v,vy:Math.sin(a)*v,life:30+R()*30,c:cols[i%cols.length]})}}
+function kill(e){if(e.dead)return;e.dead=true;addScore(PTS[e.t]);boom(e.x,e.y,BOOM[e.t]);sfx.boom();
+ if(e.carry){const s=e.carry;s.state='fall';s.vy=0;s.fy=s.y;e.carry=null}
+ if(e.t==='pod'){for(let i=0;i<4;i++){const s=spawnEnemy('swarm',mod(e.x+(R()-.5)*16),e.y+(R()-.5)*16);s.sp=0;s.vx=(R()-.5)*4;s.vy=(R()-.5)*3}}}
+const onScreen=x=>{const s=wd(x-camX);return s>-12&&s<W+12};
+function shoot(e){if(G.mode!=='play'||!onScreen(e.x))return;const dx=wd(P.x-e.x),dy=P.y-e.y,d=Math.hypot(dx,dy);if(d<30)return;
+ const sp=Math.min(1.7+G.wave*.08,3.1);bullets.push({x:e.x,y:e.y,vx:dx/d*sp+P.vx*.25,vy:dy/d*sp,life:170});sfx.shot()}
+function smart(){if(G.bombs<=0||G.mode!=='play')return;G.bombs--;G.flash=14;G.shake=8;sfx.bomb();
+ enemies.forEach(e=>{if(onScreen(e.x))kill(e)});bullets=bullets.filter(b=>!onScreen(b.x));mines=mines.filter(m=>!onScreen(m.x))}
+function warp(){if(G.mode!=='play'&&G.mode!=='clear')return;boom(P.x,P.y,['#5ef2ff','#fff'],24,1.5);P.x=mod(R()*WW);P.y=TOP+20+R()*120;P.vx=0;P.inv=45;P.sx=P.face>0?W*.28:W*.72;sfx.warp();
+ settlers.forEach(s=>{if(s.state==='ride'){s.state='fall';s.vy=0;s.fy=s.y}})}
+function playerDie(){boom(P.x,P.y,['#5ef2ff','#fff','#ff3fd2','#4a7bff'],70,3.2);G.mode='dying';G.t2=140;G.lives--;G.shake=24;lasers=[];sfx.die();
+ settlers.forEach(s=>{if(s.state==='ride'){s.state='fall';s.vy=0;s.fy=s.y}})}
+function respawn(){G.mode='play';P.y=120;P.vx=0;P.inv=120;bullets=[];
+ enemies.forEach(e=>{if(Math.abs(wd(e.x-P.x))<160)e.x=mod(e.x+(wd(e.x-P.x)<0?-200:200))});mines=mines.filter(m=>Math.abs(wd(m.x-P.x))>120)}
+function gameOver(){G.mode='over';if(G.score>hi){hi=G.score;try{localStorage.setItem('hw-hi',hi)}catch(e){}}
+ $('#hi').textContent='Best '+pad6(hi);const r=$('#result');r.hidden=false;r.textContent=`Final score ${pad6(G.score)} · reached wave ${G.wave}`;
+ $('#go').textContent='Fly again';$('#ov').hidden=false}
+function planetLost(){G.planetDead=true;G.flash=40;G.shake=40;G.msg='PLANET LOST';G.sub='Every lifter turns mutant';G.msgT=180;sfx.lost();
+ for(let i=0;i<120;i++){const x=camX+R()*W;parts.push({x,y:groundAt(x),vx:(R()-.5)*2,vy:-R()*3,life:60+R()*60,c:R()<.5?'#ff9a3c':'#ffe04a'})}
+ enemies.forEach(e=>{if(e.t==='lifter'){e.t='hunter';e.carry=null}})}
+
+/* ---------- update ---------- */
+function updPlayer(){if(G.mode!=='play'&&G.mode!=='clear')return;
+ if(P.inv>0)P.inv--;if(P.cool>0)P.cool--;
+ if(inp('left'))P.face=-1;else if(inp('right'))P.face=1;
+ P.thr=!!(inp('left')||inp('right'));
+ if(P.thr)P.vx+=P.face*.22;P.vx*=P.thr?.986:.965;P.vx=clamp(P.vx,-5.6,5.6);
+ P.x=mod(P.x+P.vx);
+ if(inp('up'))P.y-=2.4;if(inp('down'))P.y+=2.4;P.y=clamp(P.y,TOP+8,H-8);
+ if(inp('fire')&&P.cool<=0&&lasers.length<5){const x0=mod(P.x+P.face*11),s0=wd(x0-camX);
+  lasers.push({x0,y:P.y+1,dir:P.face,len:0,max:P.face>0?W-s0:s0,life:20,h:frame%6});P.cool=7;sfx.laser()}
+ if(bombE){bombE=false;smart()}if(warpE){warpE=false;warp()}
+}
+function updLasers(){for(const b of lasers){b.len=Math.min(b.len+22,b.max);b.life--;
+ for(const e of enemies){if(e.dead||e.sp>0)continue;if(Math.abs(e.y-b.y)<6.5){const d=wd(e.x-b.x0)*b.dir;if(d>-6&&d<b.len)kill(e)}}}
+ lasers=lasers.filter(b=>b.life>0)}
+function pickSettler(e){const taken=new Set(enemies.filter(o=>o!==e&&!o.dead&&o.target).map(o=>o.target));
+ let pool=settlers.filter(s=>s.state==='ground'&&!taken.has(s));if(!pool.length)pool=settlers.filter(s=>s.state==='ground');
+ let best=null,bd=1e9;for(const s of pool){const d=Math.abs(wd(s.x-e.x));if(d<bd){bd=d;best=s}}return best}
+function updEnemies(){for(const e of enemies){if(e.dead)continue;if(e.sp>0){e.sp--;continue}e.tm++;
+ const dx=wd(P.x-e.x),dy=P.y-e.y,near=Math.abs(dx)<W;
+ switch(e.t){
+ case 'lifter':{
+  if(e.carry){e.y-=.35+G.wave*.02;e.carry.x=e.x;e.carry.y=e.y+10;
+   if(e.y<TOP+8){const s=e.carry;s.state='dead';e.carry=null;e.target=null;e.t='hunter';boom(e.x,e.y,['#9dffcf','#7dff6a'],14);sfx.mutate();
+    if(!settlers.some(o=>o.state!=='dead'))planetLost()}
+  }else{let s=e.target;if(!s||s.state!=='ground'){s=e.target=pickSettler(e)}
+   if(s){const d=wd(s.x-e.x),sp=.7+G.wave*.05;
+    if(Math.abs(d)>3){e.x=mod(e.x+Math.sign(d)*Math.min(Math.abs(d),sp));const ty=Math.max(TOP+18,groundAt(e.x)-56+Math.sin(e.tm*.05)*8);e.y+=(ty-e.y)*.04}
+    else{e.x=mod(e.x+d*.2);e.y+=.65;if(e.y>=s.y-10){s.state='held';e.carry=s;sfx.sos()}}
+   }else{e.x=mod(e.x+e.vx);e.y=clamp(e.y+Math.sin(e.tm*.04)*.5,TOP+15,190)}}
+  if(near&&R()<.005+G.wave*.0008)shoot(e);break}
+ case 'hunter':{e.vx=clamp(e.vx+Math.sign(dx)*.08+(R()-.5)*.3,-2.4,2.4);e.vy=clamp(e.vy+Math.sign(dy)*.07+(R()-.5)*.3,-1.8,1.8);
+  e.x=mod(e.x+e.vx);e.y=clamp(e.y+e.vy,TOP+6,H-10);if(near&&R()<.009)shoot(e);break}
+ case 'layer':{e.x=mod(e.x+e.vx*.8);e.y=e.baseY+Math.sin(e.tm*.03)*24;if(e.tm%80===0&&mines.length<30)mines.push({x:e.x,y:e.y,life:900});break}
+ case 'pod':{e.x=mod(e.x+e.vx*.6);e.y+=e.vy*.5;if(e.y<TOP+10||e.y>200)e.vy*=-1;break}
+ case 'swarm':{if(near){e.vx+=Math.sign(dx)*.15;e.vy+=Math.sign(dy)*.12}e.vx=clamp(e.vx+(R()-.5)*.5,-3,3);e.vy=clamp(e.vy+(R()-.5)*.5,-2.2,2.2);
+  e.x=mod(e.x+e.vx);e.y=clamp(e.y+e.vy,TOP+6,H-10);if(near&&R()<.004)shoot(e);break}
+ case 'stalker':{const lim=Math.abs(P.vx)+2.6;e.vx=clamp(e.vx+Math.sign(dx)*.2,-lim,lim);e.vy=clamp(e.vy+Math.sign(dy)*.12,-2,2);
+  e.x=mod(e.x+e.vx);e.y=clamp(e.y+e.vy,TOP+6,H-10);if(near&&R()<.015)shoot(e);break}
+ }}
+ enemies=enemies.filter(e=>!e.dead)}
+function updSettlers(){const alive=G.mode==='play'||G.mode==='clear';
+ for(const s of settlers){
+  if(s.state==='ground'){if(R()<.004)s.dir*=-1;s.x=mod(s.x+s.dir*.06);s.y=groundAt(s.x)-6}
+  else if(s.state==='fall'){s.vy=Math.min(s.vy+.025,1.5);s.y+=s.vy;
+   if(alive&&Math.abs(wd(s.x-P.x))<11&&Math.abs(s.y-P.y)<10){s.state='ride';addScore(500);pops.push({x:s.x,y:s.y-10,text:'500',life:60,c:'#9dffcf'});sfx.catch()}
+   else if(s.y>=groundAt(s.x)-6){if(s.y-s.fy>70){s.state='dead';boom(s.x,s.y,['#9dffcf','#7dff6a'],12);sfx.boom();if(!settlers.some(o=>o.state!=='dead'))planetLost()}
+    else{s.state='ground';addScore(250);pops.push({x:s.x,y:s.y-10,text:'250',life:60,c:'#9dffcf'})}}}
+  else if(s.state==='ride'){s.x=P.x;s.y=P.y+9;if(s.y>=groundAt(s.x)-8){s.state='ground';addScore(500);pops.push({x:s.x,y:s.y-14,text:'SAFE 500',life:70,c:'#9dffcf'});sfx.land()}}
+ }
+ settlers=settlers.filter(s=>s.state!=='dead')}
+function updMisc(){for(const b of bullets){b.x=mod(b.x+b.vx);b.y+=b.vy;b.life--}bullets=bullets.filter(b=>b.life>0&&b.y>TOP&&b.y<H);
+ for(const m of mines)m.life--;mines=mines.filter(m=>m.life>0);
+ for(const p of parts){p.x+=p.vx;p.y+=p.vy;p.vx*=.97;p.vy*=.97;p.life--}parts=parts.filter(p=>p.life>0);
+ for(const p of pops){p.y-=.35;p.life--}pops=pops.filter(p=>p.life>0)}
+function hitPlayer(){if(G.mode!=='play'||P.inv>0)return;
+ for(const e of enemies){if(e.sp<=0&&Math.abs(wd(e.x-P.x))<10&&Math.abs(e.y-P.y)<7){kill(e);return playerDie()}}
+ for(const b of bullets){if(Math.abs(wd(b.x-P.x))<7&&Math.abs(b.y-P.y)<5)return playerDie()}
+ for(const m of mines){if(Math.abs(wd(m.x-P.x))<7&&Math.abs(m.y-P.y)<5)return playerDie()}}
+function step(){frame++;if(G.flash>0)G.flash--;if(G.shake>0)G.shake--;if(G.msgT>0)G.msgT--;
+ updPlayer();updLasers();updEnemies();updSettlers();updMisc();
+ if(G.mode==='play'){G.waveT++;G.spawnT++;
+  const lc=enemies.filter(e=>e.t==='lifter').length;
+  if(G.queue>0&&(G.spawnT>540||lc<2)){spawnLifters(5);G.spawnT=0}
+  if(G.waveT>3600&&G.waveT%1200===0)spawnEnemy('stalker');
+  hitPlayer();
+  if(G.mode==='play'&&G.queue===0&&enemies.length===0){const n=settlers.length,m=Math.min(G.wave,5),bonus=n*100*m;addScore(bonus);
+   G.mode='clear';G.t2=210;G.msg=`WAVE ${G.wave} SECURED`;G.sub=`${n} settlers × ${100*m} = ${bonus}`;G.msgT=210;bullets=[];mines=[]}
+ }else if(G.mode==='dying'){if(--G.t2<=0){G.lives<=0?gameOver():respawn()}}
+ else if(G.mode==='clear'){if(--G.t2<=0)startWave()}
+}
+
+/* ---------- draw ---------- */
+const sx=x=>wd(x-camX);
+function spr(c,x,y){const w=c.width*CELL,h=c.height*CELL;ctx.drawImage(c,x-w/2,y-h/2,w,h)}
+function draw(){
+ if(G.mode==='title'){camX=mod(camX+.6)}
+ else if(G.mode!=='over'){const tgt=P.face>0?W*.28:W*.72;P.sx+=(tgt-P.sx)*.05;camX=mod(P.x-P.sx)}
+ ctx.save();
+ ctx.fillStyle='#06050d';ctx.fillRect(0,0,W,H);
+ if(G.shake>0&&!reduce)ctx.translate((R()-.5)*G.shake*.3,(R()-.5)*G.shake*.3);
+ // stars
+ for(const s of stars){const x=((s.x-camX*s.z)%W+W)%W;ctx.fillStyle=s.c;ctx.globalAlpha=.4+.6*Math.abs(Math.sin(frame*.02+s.x));ctx.fillRect(x,s.y,1,1)}
+ ctx.globalAlpha=1;
+ // terrain
+ if(!G.planetDead){const fr=mod(camX)%4;ctx.beginPath();for(let i=-1;i<=W/4+2;i++){const x=i*4-fr,y=groundAt(camX+x);i<0?ctx.moveTo(x,y):ctx.lineTo(x,y)}
+  ctx.lineTo(W+8,H);ctx.lineTo(-8,H);ctx.closePath();ctx.fillStyle='#120b16';ctx.fill();
+  ctx.strokeStyle='rgba(255,154,60,.25)';ctx.lineWidth=3;ctx.stroke();ctx.strokeStyle='#ff9a3c';ctx.lineWidth=1;ctx.stroke()}
+ else{ctx.fillStyle='rgba(255,154,60,.35)';for(let i=0;i<W;i+=7)ctx.fillRect(i,H-4-((i*13+frame)%5),2,1)}
+ // mines
+ for(const m of mines){const x=sx(m.x);if(x<-5||x>W+5)continue;ctx.fillStyle=frame%20<10?'#ff3fd2':'#ffe04a';ctx.fillRect(x-1,m.y-3,2,6);ctx.fillRect(x-3,m.y-1,6,2)}
+ // settlers
+ for(const s of settlers){const x=sx(s.x);if(x<-8||x>W+8)continue;if(s.state==='held'&&frame%16<4)continue;spr(SP.settler,x,s.y)}
+ // enemies
+ for(const e of enemies){const x=sx(e.x);if(x<-14||x>W+14)continue;
+  if(e.sp>0){ctx.fillStyle=TCOL[e.t];const r=e.sp*.9;for(let k=0;k<8;k++){const a=k/8*Math.PI*2+e.sp*.1;ctx.fillRect(x+Math.cos(a)*r-1,e.y+Math.sin(a)*r-1,2,2)}continue}
+  spr(SP[e.t],x,e.y)}
+ // bullets
+ for(const b of bullets){const x=sx(b.x);ctx.fillStyle=frame%6<3?'#fff':'#ffe04a';ctx.fillRect(x-1.2,b.y-1.2,2.4,2.4)}
+ // lasers
+ const LC=['#ff3fd2','#5ef2ff','#ffe04a','#7dff6a','#b06bff','#ffffff'];
+ for(const b of lasers){const x0=sx(b.x0),x1=x0+b.dir*b.len;ctx.fillStyle=LC[(b.h+(frame>>1))%6];
+  ctx.fillRect(Math.min(x0,x1),b.y-.5,Math.abs(x1-x0),1.1);ctx.fillStyle='#fff';ctx.fillRect(x1-(b.dir>0?10:0),b.y-.8,10,1.6)}
+ // player
+ if((G.mode==='play'||G.mode==='clear')&&!(P.inv>0&&frame%6<3)){const x=sx(P.x);spr(P.face>0?SP.ship:SP.shipL,x,P.y);
+  if(P.thr){const L=4+R()*6,bx=x-P.face*10;ctx.fillStyle=frame%4<2?'#ff3fd2':'#ff9a3c';ctx.fillRect(P.face>0?bx-L:bx,P.y-1,L,2)}}
+ // particles & pops
+ for(const p of parts){ctx.globalAlpha=Math.min(1,p.life/30);ctx.fillStyle=p.c;ctx.fillRect(sx(p.x)-.8,p.y-.8,1.7,1.7)}ctx.globalAlpha=1;
+ ctx.textAlign='center';ctx.font='600 7px "Martian Mono",monospace';
+ for(const p of pops){ctx.fillStyle=p.c;ctx.globalAlpha=Math.min(1,p.life/20);ctx.fillText(p.text,sx(p.x),p.y)}ctx.globalAlpha=1;
+ ctx.restore();
+ hud();
+ if(G.flash>0){ctx.fillStyle=`rgba(255,255,255,${(reduce?.15:.5)*G.flash/40})`;ctx.fillRect(0,0,W,H)}
+}
+function hud(){
+ ctx.fillStyle='#06050d';ctx.fillRect(0,0,W,TOP-3);
+ ctx.fillStyle='#2b2452';ctx.fillRect(0,TOP-3,W,1);
+ const sw=Math.max(120,Math.min(W-200,340)),x0=(W-sw)/2,y0=3,sh=TOP-9;
+ ctx.strokeStyle='#2b2452';ctx.lineWidth=1;ctx.strokeRect(x0+.5,y0+.5,sw,sh);
+ const ref=G.mode==='title'?camX+W/2:P.x;
+ const mx=x=>x0+sw/2+wd(x-ref)/WW*sw,my=y=>y0+1+clamp((y-TOP)/(H-TOP),0,1)*(sh-2);
+ if(!G.planetDead){ctx.beginPath();for(let i=0;i<=80;i++){const wx=ref-WW/2+i/80*WW;const X=x0+i/80*sw,Y=my(groundAt(wx));i?ctx.lineTo(X,Y):ctx.moveTo(X,Y)}ctx.strokeStyle='rgba(255,154,60,.55)';ctx.stroke()}
+ for(const s of settlers){if(s.state==='held'&&frame%20<10)continue;ctx.fillStyle=s.state==='held'?'#ff3fd2':'#9dffcf';ctx.fillRect(mx(s.x)-.75,my(s.y)-.75,1.5,1.5)}
+ for(const e of enemies){ctx.fillStyle=TCOL[e.t];ctx.fillRect(mx(e.x)-1,my(e.y)-1,2,2)}
+ if(G.mode!=='title'&&G.mode!=='over'&&G.mode!=='dying'){ctx.fillStyle='#fff';ctx.fillRect(mx(P.x)-1.5,my(P.y)-1,3,2)}
+ const l=mx(camX),r=mx(camX+W);ctx.strokeStyle='rgba(236,233,255,.6)';ctx.beginPath();
+ ctx.moveTo(l+3,y0+1);ctx.lineTo(l,y0+1);ctx.lineTo(l,y0+sh);ctx.lineTo(l+3,y0+sh);ctx.moveTo(r-3,y0+1);ctx.lineTo(r,y0+1);ctx.lineTo(r,y0+sh);ctx.lineTo(r-3,y0+sh);ctx.stroke();
+ if(G.mode==='title')return;
+ ctx.textAlign='left';ctx.fillStyle='#ece9ff';ctx.font='800 10px "Martian Mono",monospace';ctx.fillText(pad6(G.score),8,13);
+ for(let i=0;i<Math.min(G.lives,6);i++)ctx.drawImage(SP.ship,8+i*13,18,12,6);
+ ctx.fillStyle='#ff9a3c';for(let i=0;i<Math.min(G.bombs,8);i++){const bx=10+i*8,by=30;ctx.beginPath();ctx.moveTo(bx,by-2.5);ctx.lineTo(bx+2.5,by);ctx.lineTo(bx,by+2.5);ctx.lineTo(bx-2.5,by);ctx.fill()}
+ ctx.textAlign='right';ctx.font='600 7px "Martian Mono",monospace';ctx.fillStyle='#8f89bd';ctx.fillText('WAVE',W-8,11);ctx.fillText('SETTLERS',W-8,27);
+ ctx.font='800 9px "Martian Mono",monospace';ctx.fillStyle='#ece9ff';ctx.fillText(G.wave,W-8,20);ctx.fillStyle=settlers.length<4?'#ff4a5a':'#9dffcf';ctx.fillText(settlers.length,W-8,35);
+ ctx.textAlign='center';
+ if(G.msgT>0&&G.msg){const a=Math.min(1,G.msgT/30);ctx.globalAlpha=a;ctx.font='900 20px "Tektur",sans-serif';ctx.fillStyle='#ff9a3c';ctx.fillText(G.msg,W/2,H*.42);
+  ctx.font='400 8px "Martian Mono",monospace';ctx.fillStyle='#ece9ff';ctx.fillText(G.sub,W/2,H*.42+14);ctx.globalAlpha=1}
+ if(G.paused){ctx.fillStyle='rgba(6,5,13,.6)';ctx.fillRect(0,TOP-2,W,H);ctx.font='900 22px "Tektur",sans-serif';ctx.fillStyle='#5ef2ff';ctx.fillText('PAUSED',W/2,H/2);
+  ctx.font='400 8px "Martian Mono",monospace';ctx.fillStyle='#8f89bd';ctx.fillText('P or Pause to resume',W/2,H/2+14)}
+}
+const reduce=matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+/* ---------- loop ---------- */
+let last=performance.now(),acc=0;
+function loop(t){requestAnimationFrame(loop);acc+=Math.min(100,t-last);last=t;
+ while(acc>=1000/60){if(!G.paused&&isPlaying())step();else if(!G.paused)frame++;acc-=1000/60}
+ draw()}
+requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,378 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Shift Register PCB</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Azeret+Mono:wght@400;500;700&family=Saira+Stencil+One&display=swap">
+<style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;font:14px/1.4 system-ui,-apple-system,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style>
+</head>
+<body>
+<script>/* Local shim: inside claude.ai artifacts window.claude.use() provides capabilities.
+Outside it, give the page a 'downloads' capability that saves via a normal link; 'sample' (Claude calls) stays unavailable,
+so pages fall back to their built-in rules. */
+if(!window.claude){window.claude={use:async n=>n==='downloads'?{save:async({filename,data})=>{const b=data instanceof Blob?data:new Blob([data]);const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=filename;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),4000);return{status:'saved'}}}:null}}</script>
+<style>
+/* Layout: the board laid flat — register ring, scope and harmonics on top, keybed, the 24-bit editor across the width, then bank, clock, noise, volume and output blocks */
+:root{
+  --mask:#0a2218; --mask2:#0e2d20; --trace:#1d4b36; --silk:#efe9d6; --silkdim:#93b39e;
+  --pad:#d9b45a; --led:#ff5a3c; --phos:#8cffb4; --env:#ffd166;
+  --display:"Saira Stencil One","Arial Black",system-ui,sans-serif;
+  --mono:"Azeret Mono",ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  color-scheme:dark;
+}
+html,body{min-height:100%}
+body{background:var(--mask);color:var(--silk);font:13px/1.5 var(--mono);
+  background-image:repeating-linear-gradient(90deg,transparent 0 63px,rgba(29,75,54,.35) 63px 64px),repeating-linear-gradient(0deg,transparent 0 63px,rgba(29,75,54,.25) 63px 64px)}
+.wrap{max-width:1180px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:20px 40px;display:grid;gap:18px}
+header{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:12px 24px}
+h1{margin:0;font:400 clamp(28px,5.6vw,46px)/1 var(--display);letter-spacing:.02em}
+h1 small{display:block;font:500 10px/1.6 var(--mono);letter-spacing:.18em;color:var(--silkdim);text-transform:uppercase;margin-top:6px}
+.bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+select,button{font:500 12px var(--mono);color:var(--silk);background:var(--mask2);border:1px solid var(--trace);border-radius:2px;padding:8px 10px}
+button{cursor:pointer}
+button:hover{border-color:var(--silkdim)}
+button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid var(--phos);outline-offset:2px}
+button[aria-pressed="true"]{background:var(--led);border-color:var(--led);color:var(--silk)}
+.mon{border:1px solid var(--trace);background:#04130c}
+#mc{display:block;width:100%;height:190px}
+.monbar{display:flex;flex-wrap:wrap;gap:4px 18px;padding:8px 12px;border-top:1px solid var(--trace);font-size:11px;color:var(--silkdim);font-variant-numeric:tabular-nums}
+.monbar b{color:var(--phos);font-weight:500}
+.keys{overflow-x:auto;padding-bottom:4px}
+.kb{position:relative;display:flex;height:100px;min-width:520px;user-select:none;-webkit-user-select:none;touch-action:none}
+.kb .w{flex:1;background:var(--silk);border:1px solid var(--mask);border-radius:0 0 3px 3px;color:var(--mask);font-size:9px;display:flex;align-items:flex-end;justify-content:center;padding-bottom:6px}
+.kb .b{position:absolute;top:0;height:62%;background:#061a11;border:1px solid var(--trace);border-radius:0 0 3px 3px;z-index:1}
+.kb .on{background:var(--pad)!important}
+.hint{font-size:11px;color:var(--silkdim);margin:6px 0 0}
+.board{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px;align-items:start}
+.chip{border:1px solid var(--silkdim);border-radius:2px;padding:12px 14px 14px;position:relative;background:rgba(14,45,32,.7);display:grid;gap:12px;min-width:0}
+.chip::before{content:"";position:absolute;top:-1px;left:50%;width:22px;height:9px;margin-left:-11px;border:1px solid var(--silkdim);border-top:0;border-radius:0 0 11px 11px;background:var(--mask)}
+.chip.wide{grid-column:1/-1}
+.chip h2{margin:0;display:flex;justify-content:space-between;gap:8px;font:700 11px var(--mono);letter-spacing:.14em;text-transform:uppercase}
+.chip h2 span{color:var(--pad);margin-right:8px}
+.chip h2 em{font-style:normal;font-weight:500;color:var(--phos);letter-spacing:.04em;text-transform:none;font-variant-numeric:tabular-nums;text-align:right}
+.bits{display:grid;grid-template-columns:repeat(24,minmax(0,1fr));gap:3px}
+@media (max-width:640px){.bits{grid-template-columns:repeat(12,minmax(0,1fr))}}
+.bit{padding:0;height:48px;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:2px;font-size:9px;color:var(--silkdim);background:#0b2a1d;border:1px solid var(--trace)}
+.bit[aria-pressed="true"]{background:var(--phos);border-color:var(--phos);color:var(--mask)}
+.bit.q{border-bottom-color:var(--pad)}
+.bit.now{box-shadow:inset 0 0 0 2px var(--silk)}
+.tools{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.tools button{padding:6px 9px;font-size:11px}
+.ctl{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 10px;align-items:center}
+.ctl label,.ctl .lbl{font-size:11px;color:var(--silkdim)}
+.ctl output{font-size:11px;font-variant-numeric:tabular-nums;text-align:right}
+.ctl input[type=range],.ctl .seg{grid-column:1/-1}
+.ctl.dim{opacity:.4}
+input[type=range]{-webkit-appearance:none;appearance:none;height:22px;background:transparent;margin:0;width:100%}
+input[type=range]::-webkit-slider-runnable-track{height:2px;background:var(--trace)}
+input[type=range]::-moz-range-track{height:2px;background:var(--trace)}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;margin-top:-6px;border-radius:50%;background:var(--pad);border:2px solid var(--mask);box-shadow:0 0 0 1px var(--pad)}
+input[type=range]::-moz-range-thumb{width:12px;height:12px;border-radius:50%;background:var(--pad);border:2px solid var(--mask)}
+.seg{display:flex;flex-wrap:wrap;gap:4px}
+.seg button{padding:5px 8px;font-size:11px}
+.seg button[aria-pressed="true"]{background:var(--silk);color:var(--mask);border-color:var(--silk)}
+.slots{display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:4px}
+.slots button{padding:8px 0;font-size:12px;font-weight:700}
+.slots button[aria-pressed="true"]{background:var(--silk);color:var(--mask);border-color:var(--silk)}
+.slots button.scan{box-shadow:inset 0 -3px 0 var(--pad)}
+.strip{display:flex;flex-wrap:wrap;gap:16px 10px;align-items:flex-end;padding:10px 4px 2px;border-top:1px solid var(--trace);border-bottom:1px solid var(--trace);background:repeating-linear-gradient(0deg,transparent 0 14px,rgba(29,75,54,.45) 14px 15px)}
+.strip .ctl{display:flex;flex-direction:column;align-items:center;gap:6px;width:66px}
+.strip .ctl output{order:1;font-size:10px;text-align:center;min-height:2.6em;display:flex;align-items:flex-end;justify-content:center;color:var(--phos)}
+.strip .ctl input[type=range]{order:2;writing-mode:vertical-lr;direction:rtl;-webkit-appearance:auto;appearance:auto;width:30px;height:150px;margin:0;accent-color:var(--pad);background:transparent;cursor:ns-resize}
+.strip .ctl label{order:3;font-size:10px;line-height:1.25;text-align:center;letter-spacing:.06em;text-transform:uppercase;min-height:2.5em}
+.strip .ctl input[type=range]::-webkit-slider-runnable-track{background:transparent;height:auto}
+.note{font-size:11px;color:var(--silkdim);margin:0;max-width:72ch}
+#toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--silk);color:var(--mask);padding:8px 14px;font-size:12px;border-radius:2px;z-index:5;max-width:calc(100% - 32px)}
+
+/* PCB treatment */
+body{background:#082016;background-image:none}
+#pcb{position:fixed;inset:0;width:100%;height:100%;z-index:-1;pointer-events:none}
+h1{color:#f2eedd;letter-spacing:.04em}
+h1 small b{color:var(--pad);font-weight:500}
+.mon{position:relative;border:6px solid #050d09;outline:1px solid var(--silkdim);outline-offset:3px;background:#03100a;margin-top:14px}
+.mon::before{content:"LCD1  ·  REGISTER DISPLAY";position:absolute;top:-24px;left:-6px;font:500 9px var(--mono);letter-spacing:.2em;color:var(--silkdim)}
+.chip{background:rgba(6,24,16,.88);border:1px solid #d8d2bd;border-radius:3px;margin-inline:8px}
+.pins{position:absolute;top:30px;bottom:18px;width:7px;background:repeating-linear-gradient(to bottom,#cfa64a 0 7px,transparent 7px 18px);pointer-events:none}
+.pins.l{left:-8px}.pins.r{right:-8px}
+.chip h2{color:#f2eedd}
+.chip h2 span{background:var(--pad);color:#082016;padding:1px 5px;border-radius:2px}
+.bits{gap:2px;padding:10px 8px 6px;background:#7e1f19;border-radius:3px;box-shadow:inset 0 0 0 1px #5a1410}
+.bit{position:relative;height:62px;background:#9a2a22;border:1px solid #5a1410;border-radius:1px;color:#f2eedd;justify-content:flex-end;padding-bottom:3px}
+.bit::before{content:"";position:absolute;left:50%;top:6px;width:52%;height:34px;transform:translateX(-50%);background:#2a0a07;border-radius:1px}
+.bit::after{content:"";position:absolute;left:50%;top:22px;width:44%;height:16px;transform:translateX(-50%);background:#e9e4d2;border-radius:1px;transition:top .08s}
+.bit[aria-pressed="true"]{background:#9a2a22;border-color:#5a1410;color:#f2eedd}
+.bit[aria-pressed="true"]::after{top:8px;background:#fff}
+.bit.now{box-shadow:0 0 0 2px var(--pad)}
+.bit.q{border-bottom-color:#5a1410}
+.bit span{position:relative;z-index:1}
+.bitlbl{display:flex;justify-content:space-between;font:500 9px var(--mono);letter-spacing:.14em;color:var(--silkdim);margin-top:-6px}
+.strip{background:repeating-linear-gradient(0deg,transparent 0 14px,rgba(140,200,150,.07) 14px 15px);border-color:#1d4b36}
+.strip .ctl{position:relative}
+.strip .ctl input[type=range]{background:linear-gradient(90deg,transparent 12px,#020a06 12px 18px,transparent 18px),linear-gradient(#cfa64a,#cfa64a) center top/16px 4px no-repeat,linear-gradient(#cfa64a,#cfa64a) center bottom/16px 4px no-repeat}
+.strip .ctl label b{display:block;color:var(--pad);font-weight:500;letter-spacing:.12em}
+.seg button,.slots button,.tools button,header button,select{border-color:#3d6b52;background:#0b261a}
+.seg button[aria-pressed="true"],.slots button[aria-pressed="true"]{background:#efe9d6;border-color:#cfa64a;box-shadow:inset 0 0 0 2px #cfa64a}
+.hole{position:absolute;width:16px;height:16px;border-radius:50%;background:#020805;box-shadow:0 0 0 4px #cfa64a,0 0 0 5px #5a4a1e;pointer-events:none}
+.wrap{position:relative}
+</style>
+
+<canvas id="pcb" aria-hidden="true"></canvas>
+<div class="wrap"><i class="hole" style="top:8px;left:-6px"></i><i class="hole" style="top:8px;right:-6px"></i>
+  <header>
+    <h1>Shift Register PCB<small>24-bit looping waveform · modeled on the Odyssey² sound register (1978) · <b>PCB-SR24 rev C</b></small></h1>
+    <div class="bar">
+      <select id="preset" aria-label="Preset"></select>
+      <button id="rand" type="button">Randomize</button>
+      <button id="latch" type="button" aria-pressed="false">Latch keys</button>
+      <button id="panic" type="button">All off</button>
+    </div>
+  </header>
+
+  <section class="mon" aria-label="Register, scope and harmonics">
+    <canvas id="mc"></canvas>
+    <div class="monbar" id="ro"></div>
+  </section>
+
+  <section>
+    <div class="bar" style="justify-content:space-between;margin-bottom:6px"><span class="note" id="oct"></span><span class="bar"><button id="octD" type="button">Octave down</button><button id="octU" type="button">Octave up</button></span></div>
+    <div class="keys"><div class="kb" id="kb"></div></div>
+    <p class="hint">Z–M and Q–I on a keyboard. Bit edits are heard immediately, so latch a note and draw.</p>
+  </section>
+
+  <section class="board" id="board">
+    <div class="chip wide">
+      <h2><div><span>U1</span>Sound register</div><em id="regro"></em></h2>
+      <div class="bits" id="bits" role="group" aria-label="24 register bits"></div><div class="bitlbl" aria-hidden="true"><span>SW1</span><span>ON ↑</span><span>SW24</span></div>
+      <div class="tools">
+        <button id="rotL" type="button">Rotate ←</button><button id="rotR" type="button">Rotate →</button><button id="inv" type="button">Invert</button><button id="mir" type="button">Mirror</button>
+        <button id="rbits" type="button">Random</button><button id="clr" type="button">Clear</button>
+        <span class="note">Tile the first</span><span class="seg" id="tile" role="group" aria-label="Tile motif length"></span>
+      </div>
+      <div class="ctl"><label for="euk">Euclidean fill</label><output id="eukO"></output><input type="range" id="euk" min="0" max="24" step="1" value="9"></div>
+      <p class="note">The 24 bits loop out of the register one at a time. The shortest repeating unit sets the pitch: a pattern that repeats every 8 bits plays three times higher than one that only repeats after 24. With "tune to period" on, the keyboard compensates so every pattern stays in tune.</p>
+    </div>
+  </section>
+
+  <section class="bar">
+    <button id="rec" type="button" aria-pressed="false">Record</button>
+    <span class="note" id="recro">Records up to 30 seconds of what you play, then offers it as a WAV.</span>
+    <button id="copy" type="button">Copy patch</button>
+  </section>
+  <p class="note">The register, shift clock, noise and 4-bit volume follow the design of the console's sound hardware. Playable pitch, scanning and extra voices are additions for musical use.</p>
+</div>
+<div id="toast" hidden></div>
+
+<script>
+(()=>{
+const $=s=>document.querySelector(s);
+/* ===== engine ===== */
+const DSP=`class SR{
+ constructor(sr){this.sr=sr;this.p=null;this.v=[0,1,2].map(()=>({n:-1,ph:0,vol:0,st:0,t:0,rv:0,age:0,lf:0xACE1,nb:0,last:0}));this.age=0;this.fpos=0;this.scanT=0;this.scanI=0;this.held=[];
+  this.lp=0;this.dc=0;this.dx=0;this.sc=new Float32Array(1024);this.si=0;this.sstep=1;this.sc2=0;this.pos=0;this.slot=0}
+ set(p){this.p=p}
+ noteOn(n){const p=this.p;if(!p)return;const vs=this.v.slice(0,p.voices);let v=vs.find(x=>x.n===n&&x.st)||vs.find(x=>x.st===0)||vs.reduce((a,b)=>a.age<b.age?a:b);v.n=n;v.st=1;v.t=0;v.age=++this.age;if(!p.fixed)v.ph=0}
+ noteOff(n){for(const v of this.v)if(v.n===n&&v.st&&v.st<4){v.st=4;v.t=0;v.rv=v.vol}}
+ panic(){for(const v of this.v){v.st=0;v.vol=0}}
+ frame(){const p=this.p;for(const v of this.v){const pk=p.peak,sus=Math.round(pk*p.s/15);
+  if(v.st===1){v.vol=p.a?Math.round(pk*(v.t+1)/p.a):pk;if(++v.t>=p.a){v.st=2;v.t=0}}
+  else if(v.st===2){v.vol=p.d?Math.round(pk+(sus-pk)*(v.t+1)/p.d):sus;if(++v.t>=p.d){v.st=3;v.t=0}}
+  else if(v.st===3){v.vol=sus;if(!sus)v.st=0}
+  else if(v.st===4){v.vol=p.r?Math.round(v.rv*(1-(v.t+1)/p.r)):0;if(++v.t>=p.r||v.vol<=0){v.st=0;v.vol=0}}else v.vol=0}}
+ next(){const p=this.p;if(!p)return 0;const sr=this.sr;this.fpos+=60/sr;if(this.fpos>=1){this.fpos-=1;this.frame()}
+  if(p.scan){this.scanT+=1/sr;if(this.scanT>=1/p.scanRate){this.scanT=0;this.scanI=(this.scanI+1)%p.scanN}this.slot=(p.slot+this.scanI)%8}else this.slot=p.slot;
+  const pat=p.bank[this.slot],per=p.per[this.slot];let sum=0;
+  for(let i=0;i<p.voices;i++){const v=this.v[i];if(v.vol<=0)continue;
+   const fs=p.fixed?p.clock:440*Math.pow(2,(v.n-69)/12)*(p.tuneP?per:24);let acc=0;
+   for(let q=0;q<4;q++){const prev=Math.floor(v.ph);v.ph+=fs/sr/4;if(v.ph>=24e6)v.ph-=24e6;const cur=Math.floor(v.ph);
+    if(cur!==prev){for(let s=prev;s<cur&&s<prev+64;s++){if(s%p.nRate===0){const b=(v.lf^(v.lf>>2)^(v.lf>>3)^(v.lf>>5))&1;v.lf=(v.lf>>1)|(b<<15);v.nb=v.lf&1}}}
+    let bit=pat[cur%24];if(p.noise===1)bit^=v.nb;else if(p.noise===2)bit=bit&v.nb;acc+=bit}
+   if(i===0)this.pos=Math.floor(v.ph)%24;sum+=acc/4*v.vol/15}
+  let y=sum/Math.max(1,Math.sqrt(p.voices));if(p.tv){this.lp+=(y-this.lp)*.35;y=this.lp}
+  const yd=y-this.dx+.996*this.dc;this.dx=y;this.dc=yd;const out=Math.tanh(yd*1.8*p.level);
+  if(++this.sc2>=this.sstep){this.sc2=0;this.sc[this.si]=out;this.si=(this.si+1)&1023}return out}
+}`;
+const SR=new Function(DSP+';return SR')();
+const WK=DSP+`
+class W extends AudioWorkletProcessor{constructor(){super();this.c=new SR(sampleRate);this.n=0;this.rec=false;
+ this.port.onmessage=e=>{const d=e.data,c=this.c;if(d.p)c.set(d.p);if(d.on!==undefined)c.noteOn(d.on);if(d.off!==undefined)c.noteOff(d.off);if(d.panic)c.panic();if(d.rec!==undefined)this.rec=d.rec}}
+ process(i,o){const out=o[0],ch=out[0];for(let k=0;k<ch.length;k++)ch[k]=this.c.next();for(let c=1;c<out.length;c++)out[c].set(ch);if(this.rec)this.port.postMessage({chunk:ch.slice()});
+  if(++this.n%6===0)this.port.postMessage({sc:this.c.sc.slice(),si:this.c.si,pos:this.c.pos,slot:this.c.slot,vol:this.c.v[0].vol,on:this.c.v.some(v=>v.vol>0)});return true}}
+registerProcessor('sr',W);`;
+
+/* ===== patterns ===== */
+const bitsOf=s=>[...s.replace(/\s/g,'')].slice(0,24).map(c=>c==='1'?1:0);
+const euclid=k=>Array.from({length:24},(_,i)=>Math.floor((i+1)*k/24)-Math.floor(i*k/24));
+const tile=(b,L)=>Array.from({length:24},(_,i)=>b[i%L]);
+const period=b=>{for(const P of [1,2,3,4,6,8,12,24])if(b.every((x,i)=>x===b[i%P]))return P;return 24};
+const BANK=()=>[bitsOf('111111111111000000000000'),bitsOf('111000000000000000000000'),tile(bitsOf('1100'),4),euclid(9),bitsOf('110100111010001011000101'),bitsOf('111011000100111011000100'),tile(bitsOf('101'),3),bitsOf('111111110000111100001100')];
+const DEF={name:'Register basics',bank:BANK(),slot:0,fixed:0,clock:4000,tuneP:1,noise:0,nRate:1,peak:12,a:1,d:8,s:10,r:8,scan:0,scanRate:12,scanN:4,voices:1,tv:1,level:.9};
+const P=o=>Object.assign(JSON.parse(JSON.stringify(DEF)),o);
+const withBank=(o,i,b)=>{const p=P(o);p.bank[i]=b;return p};
+const PRESETS=[P({}),
+ P({name:'Thin buzz',slot:1,a:0,d:20,s:6}),
+ P({name:'Euclid 7',slot:3,bank:(()=>{const b=BANK();b[3]=euclid(7);return b})(),a:2,d:12,s:9,r:10}),
+ P({name:'Scanning bells',scan:1,scanRate:14,scanN:4,a:0,d:30,s:0,r:20}),
+ P({name:'Noise hat',noise:2,nRate:1,slot:0,a:0,d:4,s:0,r:2,tuneP:0}),
+ P({name:'Grit organ',slot:5,voices:3,a:2,d:10,s:12,r:10,noise:1,nRate:7}),
+ P({name:'Fixed clock drone',fixed:1,clock:2600,slot:4,a:20,d:30,s:14,r:40}),
+ P({name:'Wide chords',voices:3,slot:7,a:1,d:12,s:11,r:12})];
+function sanitize(o){const p=P({});if(!o||typeof o!=='object')return p;const n=(v,a,b,d)=>{v=+v;return isFinite(v)?Math.max(a,Math.min(b,v)):d};
+ if(o.name!==undefined)p.name=String(o.name).slice(0,40);
+ if(Array.isArray(o.bank)&&o.bank.length===8)p.bank=o.bank.map(b=>Array.from({length:24},(_,i)=>Array.isArray(b)&&b[i]?1:0));
+ for(const [k,a,b,i] of [['slot',0,7,1],['fixed',0,1,1],['clock',50,40000],['tuneP',0,1,1],['noise',0,2,1],['nRate',1,8,1],['peak',0,15,1],['a',0,60,1],['d',0,60,1],['s',0,15,1],['r',0,60,1],['scan',0,1,1],['scanRate',.5,60],['scanN',2,8,1],['voices',1,3,1],['tv',0,1,1],['level',0,1.5]])
+  if(o[k]!==undefined){let v=n(o[k],a,b,p[k]);if(i)v=Math.round(v);p[k]=v}return p}
+let patch;try{const s=localStorage.getItem('shift-patch');patch=s?sanitize(JSON.parse(s)):null}catch(e){}if(!patch)patch=P({});
+const cfg=()=>Object.assign({},patch,{per:patch.bank.map(period)});
+
+/* ===== audio ===== */
+let AC=null,node=null,local=null,MON=null,starting=null,recBuf=null,recLen=0;
+async function audio(){if(AC){if(AC.state==='suspended')AC.resume();return}if(starting)return starting;starting=(async()=>{
+ try{AC=new (window.AudioContext||window.webkitAudioContext)()}catch(e){toast('Audio is unavailable in this browser');return}
+ try{await AC.audioWorklet.addModule(URL.createObjectURL(new Blob([WK],{type:'application/javascript'})));node=new AudioWorkletNode(AC,'sr',{outputChannelCount:[2]});node.port.onmessage=e=>{if(e.data.chunk)addRec(e.data.chunk);else MON=e.data}}
+ catch(e){local=new SR(AC.sampleRate);node=AC.createScriptProcessor(1024,0,2);node.onaudioprocess=ev=>{const a=ev.outputBuffer.getChannelData(0),b=ev.outputBuffer.getChannelData(1);for(let i=0;i<a.length;i++)a[i]=b[i]=local.next();
+  MON={sc:local.sc,si:local.si,pos:local.pos,slot:local.slot,vol:local.v[0].vol,on:local.v.some(v=>v.vol>0)};if(recBuf)addRec(a.slice())}}
+ const g=AC.createGain();g.gain.value=.75;node.connect(g).connect(AC.destination);send({p:cfg()});if(AC.state==='suspended')AC.resume()})();return starting}
+function send(m){if(!node)return;if(local){if(m.p)local.set(JSON.parse(JSON.stringify(m.p)));if(m.on!==undefined)local.noteOn(m.on);if(m.off!==undefined)local.noteOff(m.off);if(m.panic)local.panic()}else node.port.postMessage(m)}
+const held=new Map();let latched=false;const latchSet=new Set();
+async function noteOn(n,src){await audio();if(held.has(src))return;held.set(src,n);if(latched){if(latchSet.has(n)){latchSet.delete(n);send({off:n});return}latchSet.add(n)}send({on:n})}
+function noteOff(src){const n=held.get(src);if(n===undefined)return;held.delete(src);if(latched)return;if(![...held.values()].includes(n))send({off:n})}
+
+/* ===== register editor ===== */
+const SL='ABCDEFGH';const bitEls=[];
+const cur=()=>patch.bank[patch.slot];
+for(let i=0;i<24;i++){const b=document.createElement('button');b.type='button';b.className='bit'+(i%4===3?' q':'');b.innerHTML=`<span>${i}</span>`;b.setAttribute('aria-label','Bit '+i);
+ b.addEventListener('pointerdown',e=>{e.preventDefault();paintVal=cur()[i]?0:1;cur()[i]=paintVal;painting=true;changed()});b.addEventListener('pointerenter',()=>{if(painting&&cur()[i]!==paintVal){cur()[i]=paintVal;changed()}});
+ b.addEventListener('keydown',e=>{if(e.key===' '||e.key==='Enter'){e.preventDefault();cur()[i]^=1;changed()}});$('#bits').append(b);bitEls.push(b)}
+let painting=false,paintVal=1;addEventListener('pointerup',()=>painting=false);
+const op=f=>()=>{patch.bank[patch.slot]=f(cur());changed()};
+$('#rotL').addEventListener('click',op(b=>[...b.slice(1),b[0]]));$('#rotR').addEventListener('click',op(b=>[b[23],...b.slice(0,23)]));
+$('#inv').addEventListener('click',op(b=>b.map(x=>1-x)));$('#mir').addEventListener('click',op(b=>[...b].reverse()));
+$('#rbits').addEventListener('click',op(()=>Array.from({length:24},()=>Math.random()<.45?1:0)));$('#clr').addEventListener('click',op(()=>Array(24).fill(0)));
+[2,3,4,6,8,12].forEach(L=>{const b=document.createElement('button');b.type='button';b.textContent=L;b.setAttribute('aria-label',`Tile the first ${L} bits`);b.addEventListener('click',op(x=>tile(x,L)));$('#tile').append(b)});
+$('#euk').addEventListener('input',e=>{$('#eukO').textContent=e.target.value+' of 24';patch.bank[patch.slot]=euclid(+e.target.value);changed()});$('#eukO').textContent=$('#euk').value+' of 24';
+
+/* ===== panels ===== */
+const binds=[];const NN=['C','C♯','D','D♯','E','F','F♯','G','G♯','A','A♯','B'],noteName=n=>NN[((n%12)+12)%12]+(Math.floor(n/12)-1);
+const fHz=f=>f>=1000?(f/1000).toFixed(2)+' kHz':f.toFixed(f>=10?0:1)+' Hz';
+function mkSeg(labels,get,set){const s=document.createElement('div');s.className='seg';labels.forEach((l,i)=>{const b=document.createElement('button');b.type='button';b.textContent=l;b.addEventListener('click',()=>{set(i);changed()});s.append(b)});
+ binds.push(()=>[...s.children].forEach((b,i)=>b.setAttribute('aria-pressed',String(i===get()))));return s}
+function row(label,el,out,dim){const r=document.createElement('div');r.className='ctl';const id='i'+Math.random().toString(36).slice(2,8);
+ if(el.tagName==='INPUT'){el.id=id;r.innerHTML=`<label for="${id}">${label}</label>`}else{r.innerHTML=`<span class="lbl" id="${id}">${label}</span>`;el.setAttribute('role','group');el.setAttribute('aria-labelledby',id)}
+ const o=document.createElement('output');r.append(o,el);binds.push(()=>{if(out)o.textContent=out();if(dim)r.classList.toggle('dim',dim())});return r}
+function rng(min,max,st,k,log){const r=document.createElement('input');r.type='range';if(log){r.min=0;r.max=1000;r.step=1}else{r.min=min;r.max=max;r.step=st}
+ const toV=x=>log?min*Math.pow(max/min,x/1000):+x,fromV=v=>log?Math.round(Math.log(v/min)/Math.log(max/min)*1000):v;
+ r.addEventListener('input',()=>{let v=toV(r.value);v=st>=1?Math.round(v):Math.round(v*100)/100;patch[k]=v;changed()});binds.push(()=>{if(document.activeElement!==r)r.value=fromV(patch[k])});return r}
+function chip(u,t){const c=document.createElement('div');c.className='chip';c.innerHTML=`<h2><div><span>${u}</span>${t}</div><em></em></h2>`;$('#board').append(c);return[c,c.querySelector('em')]}
+function build(){
+ let [c,e]=chip('U2','Pattern bank');binds.push(()=>{e.textContent=patch.scan?`scanning ${patch.scanN} slots`:'slot '+SL[patch.slot]});
+ const sl=document.createElement('div');sl.className='slots';sl.setAttribute('role','group');sl.setAttribute('aria-label','Pattern slots');
+ for(let i=0;i<8;i++){const b=document.createElement('button');b.type='button';b.textContent=SL[i];b.addEventListener('click',()=>{patch.slot=i;changed()});sl.append(b);
+  binds.push(()=>{b.setAttribute('aria-pressed',String(i===patch.slot));b.classList.toggle('scan',!!patch.scan&&((i-patch.slot+8)%8)<patch.scanN)})}c.append(sl);
+ const cp=document.createElement('button');cp.type='button';cp.textContent='Copy slot to next';cp.addEventListener('click',()=>{const t=(patch.slot+1)%8;patch.bank[t]=[...cur()];patch.slot=t;changed();toast('Copied to slot '+SL[t])});c.append(cp);
+ c.append(row('Bank scanning',mkSeg(['Off','On'],()=>patch.scan,v=>patch.scan=v)));
+ c.append(row('Scan rate',rng(.5,60,.1,'scanRate',1),()=>patch.scanRate.toFixed(1)+' Hz',()=>!patch.scan));
+ c.append(row('Slots in the scan',rng(2,8,1,'scanN'),()=>patch.scanN+' slots',()=>!patch.scan));
+ const n2=document.createElement('p');n2.className='note';n2.textContent='Scanning steps through the bank while a note plays, the way games swapped register patterns between frames: a crude wavetable sweep.';c.append(n2);
+ [c,e]=chip('U3','Shift clock');binds.push(()=>{e.textContent=patch.fixed?fHz(patch.clock):'set by keys'});
+ c.append(row('Clock source',mkSeg(['Keys set clock','Fixed clock'],()=>patch.fixed,v=>patch.fixed=v)));
+ c.append(row('Fixed clock',rng(50,40000,1,'clock',1),()=>`${fHz(patch.clock)} · loop ${fHz(patch.clock/24)}`,()=>!patch.fixed));
+ c.append(row('Keyboard tuning',mkSeg(['Whole register','Tune to period'],()=>patch.tuneP,v=>patch.tuneP=v),null,()=>patch.fixed));
+ [c,e]=chip('U4','Noise');binds.push(()=>{e.textContent=['off','XOR into pattern','gated by pattern'][patch.noise]});
+ c.append(row('Noise mode',mkSeg(['Off','XOR','Gated'],()=>patch.noise,v=>patch.noise=v)));
+ c.append(row('Noise step',rng(1,8,1,'nRate'),()=>patch.nRate===1?'every bit':'every '+patch.nRate+' bits',()=>!patch.noise));
+ [c,e]=chip('U5','Volume (4-bit)');binds.push(()=>{e.textContent='60 frames/s'});
+ c.append(row('Peak',rng(0,15,1,'peak'),()=>patch.peak+' / 15'));c.append(row('Attack',rng(0,60,1,'a'),()=>patch.a+' fr'));c.append(row('Decay',rng(0,60,1,'d'),()=>patch.d+' fr'));
+ c.append(row('Sustain',rng(0,15,1,'s'),()=>patch.s+' / 15'));c.append(row('Release',rng(0,60,1,'r'),()=>patch.r+' fr'));
+ [c,e]=chip('U6','Output');
+ c.append(row('Voices',mkSeg(['1 (original)','3 (extra registers)'],()=>patch.voices===1?0:1,v=>patch.voices=v?3:1)));
+ c.append(row('TV speaker',mkSeg(['Off','On'],()=>patch.tv,v=>patch.tv=v)));c.append(row('Level',rng(0,1.5,.01,'level'),()=>Math.round(patch.level*100)+'%'))}
+let saveT=0;
+function changed(){send({p:cfg()});binds.forEach(f=>f());syncBits();markCustom();clearTimeout(saveT);saveT=setTimeout(()=>{try{localStorage.setItem('shift-patch',JSON.stringify(patch))}catch(e){}},300)}
+function syncBits(){const b=cur();bitEls.forEach((el,i)=>el.setAttribute('aria-pressed',String(!!b[i])));const P=period(b),ones=b.reduce((a,x)=>a+x,0);
+ $('#regro').textContent=`slot ${SL[patch.slot]} · ${ones} of 24 set · ${P===1?'no pitch (constant)':P===24?'repeats every 24 bits':`repeats every ${P} bits (pitch ×${24/P})`}`}
+
+/* ===== presets / random ===== */
+const ps=$('#preset');PRESETS.forEach((p,i)=>{const o=document.createElement('option');o.value=i;o.textContent=p.name;ps.append(o)});
+function markCustom(){const s=JSON.stringify(patch),i=PRESETS.findIndex(p=>JSON.stringify(p)===s);if(i>=0){ps.value=i;return}
+ if(!$('#custom')){const o=document.createElement('option');o.value='';o.id='custom';o.textContent='Your patch';ps.prepend(o)}ps.value=''}
+async function audition(){await audio();if(latchSet.size)return;send({on:60});setTimeout(()=>send({off:60}),500)}
+ps.addEventListener('change',()=>{if(ps.value==='')return;patch=JSON.parse(JSON.stringify(PRESETS[+ps.value]));send({panic:1});latchSet.clear();changed();audition()});
+$('#rand').addEventListener('click',()=>{const ri=(a,b)=>a+Math.floor(Math.random()*(b-a+1)),pick=a=>a[ri(0,a.length-1)];
+ const bank=Array.from({length:8},()=>{const t=ri(0,3);return t===0?euclid(ri(2,15)):t===1?tile(Array.from({length:12},()=>Math.random()<.5?1:0),pick([3,4,6,8,12])):Array.from({length:24},()=>Math.random()<.4?1:0)});
+ patch=sanitize({name:'Random '+ri(0,255).toString(16).toUpperCase().padStart(2,'0'),bank,slot:ri(0,7),fixed:0,tuneP:1,noise:pick([0,0,0,1,2]),nRate:ri(1,8),peak:ri(9,15),a:pick([0,0,2,6]),d:ri(4,30),s:ri(0,13),r:ri(2,20),
+  scan:Math.random()<.3?1:0,scanRate:ri(4,30),scanN:ri(2,6),voices:patch.voices,tv:1,level:.9});send({panic:1});latchSet.clear();changed();audition()});
+$('#latch').addEventListener('click',e=>{latched=!latched;e.currentTarget.setAttribute('aria-pressed',String(latched));if(!latched){latchSet.forEach(n=>{if(![...held.values()].includes(n))send({off:n})});latchSet.clear()}});
+$('#panic').addEventListener('click',()=>{send({panic:1});latchSet.clear();held.clear();Object.values(keyEls).forEach(k=>k.classList.remove('on'))});
+
+/* ===== keybed ===== */
+let octave=0;const kb=$('#kb'),BLK=[1,3,6,8,10],keyEls={},whites=[];
+for(let n=0;n<=24;n++){if(!BLK.includes(n%12)){const k=document.createElement('div');k.className='w';k.dataset.n=n;kb.append(k);keyEls[n]=k;whites.push(n)}}
+for(let n=0;n<=24;n++){if(BLK.includes(n%12)){const k=document.createElement('div');k.className='b';k.dataset.n=n;const l=whites.indexOf(n-1)+1;k.style.left=`calc(${l/whites.length*100}% - ${100/whites.length*.3}%)`;k.style.width=`${100/whites.length*.6}%`;kb.append(k);keyEls[n]=k}}
+const baseNote=()=>48+octave*12;
+function labelKeys(){[0,12,24].forEach(n=>{keyEls[n].textContent=noteName(baseNote()+n)});$('#oct').textContent=`Keybed ${noteName(baseNote())}–${noteName(baseNote()+24)}`}
+$('#octD').addEventListener('click',()=>{octave=Math.max(-3,octave-1);labelKeys()});$('#octU').addEventListener('click',()=>{octave=Math.min(3,octave+1);labelKeys()});labelKeys();
+kb.addEventListener('pointerdown',e=>{const k=e.target.closest('[data-n]');if(!k)return;e.preventDefault();try{kb.setPointerCapture(e.pointerId)}catch(_){}k.classList.add('on');noteOn(baseNote()+(+k.dataset.n),'p'+e.pointerId)});
+const kUp=e=>{const src='p'+e.pointerId,n=held.get(src);if(n===undefined)return;const el=keyEls[n-baseNote()];if(el&&!latched)el.classList.remove('on');noteOff(src)};kb.addEventListener('pointerup',kUp);kb.addEventListener('pointercancel',kUp);
+const KM={KeyZ:0,KeyS:1,KeyX:2,KeyD:3,KeyC:4,KeyV:5,KeyG:6,KeyB:7,KeyH:8,KeyN:9,KeyJ:10,KeyM:11,Comma:12,KeyQ:12,Digit2:13,KeyW:14,Digit3:15,KeyE:16,KeyR:17,Digit5:18,KeyT:19,Digit6:20,KeyY:21,Digit7:22,KeyU:23,KeyI:24};
+const typing=t=>t.tagName==='TEXTAREA'||t.tagName==='SELECT'||(t.tagName==='INPUT'&&t.type!=='range');
+addEventListener('keydown',e=>{if(e.repeat||e.metaKey||e.ctrlKey||e.altKey||typing(e.target)||KM[e.code]===undefined)return;const n=KM[e.code];keyEls[n]&&keyEls[n].classList.add('on');noteOn(baseNote()+n,e.code)});
+addEventListener('keyup',e=>{if(KM[e.code]===undefined||!held.has(e.code))return;const el=keyEls[held.get(e.code)-baseNote()];if(el&&!latched)el.classList.remove('on');noteOff(e.code)});
+addEventListener('blur',()=>{[...held.keys()].forEach(noteOff);if(!latched)Object.values(keyEls).forEach(k=>k.classList.remove('on'))});
+setInterval(()=>{if(latched)Object.entries(keyEls).forEach(([n,k])=>k.classList.toggle('on',latchSet.has(baseNote()+(+n))||[...held.values()].includes(baseNote()+(+n))))},150);
+
+/* ===== monitor ===== */
+const mc=$('#mc');let lastPos=-1;
+function harm(b){const H=[];for(let h=1;h<=12;h++){let re=0,im=0;for(let i=0;i<24;i++){re+=b[i]*Math.cos(2*Math.PI*h*i/24);im-=b[i]*Math.sin(2*Math.PI*h*i/24)}H.push(Math.hypot(re,im))}return H}
+function draw(){requestAnimationFrame(draw);const r=mc.getBoundingClientRect(),d=Math.min(devicePixelRatio||1,2);if(mc.width!==Math.round(r.width*d)){mc.width=Math.round(r.width*d);mc.height=Math.round(r.height*d)}
+ const x=mc.getContext('2d');x.setTransform(d,0,0,d,0,0);const w=r.width,h=r.height;x.clearRect(0,0,w,h);x.font='10px "Azeret Mono",monospace';x.textBaseline='alphabetic';
+ const slot=MON&&MON.on?MON.slot:patch.slot,b=patch.bank[slot],pos=MON&&MON.on?MON.pos:-1;
+ const R=Math.min(h/2-14,w*.16),cx=R+16,cy=h/2+4;x.fillStyle='#93b39e';x.fillText(`Register ${SL[slot]}`,8,12);
+ for(let i=0;i<24;i++){const a0=-Math.PI/2+i/24*2*Math.PI,a1=a0+2*Math.PI/24*.86;x.beginPath();x.arc(cx,cy,R,a0,a1);x.arc(cx,cy,R*.62,a1,a0,true);x.closePath();
+  x.fillStyle=i===pos?(b[i]?'#efe9d6':'#d9b45a'):b[i]?'#8cffb4':'#0e2d20';x.fill();x.strokeStyle='#1d4b36';x.stroke()}
+ const P=period(b);x.fillStyle='#efe9d6';x.textAlign='center';x.font='600 12px "Azeret Mono",monospace';x.fillText(P===1?'—':'÷'+P,cx,cy+4);x.textAlign='left';x.font='10px "Azeret Mono",monospace';
+ const sx0=cx+R+20,hw=Math.min(220,w*.3),sw=w-sx0-hw-24;
+ if(sw>60){x.fillStyle='#93b39e';x.fillText('Output',sx0,12);x.strokeStyle='#123a29';x.beginPath();x.moveTo(sx0,h/2+4);x.lineTo(sx0+sw,h/2+4);x.stroke();
+  if(MON){x.strokeStyle='#efe9d6';x.lineWidth=1.2;x.beginPath();for(let k=0;k<1024;k++){const v=MON.sc[(MON.si+k)&1023],X=sx0+k/1023*sw,Y=h/2+4-Math.max(-1,Math.min(1,v))*(h/2-22);k?x.lineTo(X,Y):x.moveTo(X,Y)}x.stroke();x.lineWidth=1}}
+ const hx0=w-hw-8,H=harm(b),mx=Math.max(...H)||1,bw=hw/12;x.fillStyle='#93b39e';x.fillText('Harmonics of the loop',hx0,12);
+ H.forEach((v,i)=>{const bh=v/mx*(h-46),X=hx0+i*bw;x.fillStyle=(i+1)%(24/P)===0&&P>1?'#d9b45a':'#8cffb4';x.globalAlpha=(i+1)%(24/P)===0||P===24?1:.25;x.fillRect(X+2,h-22-bh,bw-4,bh);x.globalAlpha=1;
+  if(bw>14){x.fillStyle='#93b39e';x.textAlign='center';x.fillText(i+1,X+bw/2,h-8);x.textAlign='left'}});
+ if(pos!==lastPos){bitEls.forEach((el,i)=>el.classList.toggle('now',i===pos&&slot===patch.slot));lastPos=pos}
+ const ones=b.reduce((a,v)=>a+v,0),s=`<span>Pattern <b>${b.join('')}</b></span><span>Period <b>${P}</b> bits</span><span>Duty <b>${Math.round(ones/24*100)}%</b></span>${MON&&MON.on?`<span>Volume <b>${MON.vol}</b> / 15</span>`:''}`;if($('#ro').innerHTML!==s)$('#ro').innerHTML=s}
+requestAnimationFrame(draw);
+
+/* ===== record ===== */
+const MAXS=30;
+function addRec(ch){if(!recBuf)return;if(recLen+ch.length>recBuf.length){stopRec();return}recBuf.set(ch,recLen);recLen+=ch.length;if((recLen/ch.length)%40<1)$('#recro').textContent=`Recording ${(recLen/AC.sampleRate).toFixed(1)} s of ${MAXS}…`}
+$('#rec').addEventListener('click',async()=>{if(recBuf){stopRec();return}await audio();if(!AC)return;recBuf=new Float32Array(Math.round(AC.sampleRate*MAXS));recLen=0;$('#rec').setAttribute('aria-pressed','true');$('#rec').textContent='Stop recording';send({rec:true})});
+let DL=null;(async()=>{try{DL=window.claude&&window.claude.use?await window.claude.use('downloads'):null}catch(e){DL=null}})();
+async function stopRec(){if(!recBuf)return;send({rec:false});const sr=AC.sampleRate,data=recBuf.subarray(0,recLen);recBuf=null;$('#rec').setAttribute('aria-pressed','false');$('#rec').textContent='Record';
+ if(recLen<sr*.1){$('#recro').textContent='Nothing long enough was recorded.';return}$('#recro').textContent=`Recorded ${(recLen/sr).toFixed(1)} s.`;if(!DL){$('#recro').textContent+=' Saving files is unavailable in this view.';return}
+ const s=(patch.name||'register').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'')||'register';
+ try{await DL.save({filename:s+'.zip',data:zip([{name:s+'.wav',data:wav16(data,sr)},{name:s+'.json',data:new TextEncoder().encode(JSON.stringify(patch,null,1))}])});toast('Saved '+s+'.zip')}
+ catch(e){const c=e&&e.code;if(c!=='declined')toast(c==='rate_limited'?'A save prompt is already open':'Saving is unavailable here.')}}
+function wav16(f,rate){const n=f.length,buf=new ArrayBuffer(44+n*2),d=new DataView(buf),w=(o,s)=>{for(let i=0;i<4;i++)d.setUint8(o+i,s.charCodeAt(i))};
+ w(0,'RIFF');d.setUint32(4,36+n*2,true);w(8,'WAVE');w(12,'fmt ');d.setUint32(16,16,true);d.setUint16(20,1,true);d.setUint16(22,1,true);d.setUint32(24,rate,true);d.setUint32(28,rate*2,true);d.setUint16(32,2,true);d.setUint16(34,16,true);w(36,'data');d.setUint32(40,n*2,true);
+ for(let i=0;i<n;i++)d.setInt16(44+2*i,Math.max(-32768,Math.min(32767,Math.round(f[i]*32767))),true);return new Uint8Array(buf)}
+const CRC=(()=>{const t=new Uint32Array(256);for(let n=0;n<256;n++){let c=n;for(let k=0;k<8;k++)c=c&1?0xEDB88320^(c>>>1):c>>>1;t[n]=c}return u=>{let c=~0;for(let i=0;i<u.length;i++)c=t[(c^u[i])&255]^(c>>>8);return(~c)>>>0}})();
+function zip(files){const parts=[],cen=[];let off=0;const te=new TextEncoder();for(const f of files){const nm=te.encode(f.name),crc=CRC(f.data),sz=f.data.length;
+ const h=new DataView(new ArrayBuffer(30));h.setUint32(0,0x04034b50,true);h.setUint16(4,20,true);h.setUint16(12,0x21,true);h.setUint32(14,crc,true);h.setUint32(18,sz,true);h.setUint32(22,sz,true);h.setUint16(26,nm.length,true);parts.push(new Uint8Array(h.buffer),nm,f.data);
+ const c=new DataView(new ArrayBuffer(46));c.setUint32(0,0x02014b50,true);c.setUint16(4,20,true);c.setUint16(6,20,true);c.setUint16(14,0x21,true);c.setUint32(16,crc,true);c.setUint32(20,sz,true);c.setUint32(24,sz,true);c.setUint16(28,nm.length,true);c.setUint32(42,off,true);cen.push(new Uint8Array(c.buffer),nm);off+=30+nm.length+sz}
+ const cs=cen.reduce((a,b)=>a+b.length,0),e=new DataView(new ArrayBuffer(22));e.setUint32(0,0x06054b50,true);e.setUint16(8,files.length,true);e.setUint16(10,files.length,true);e.setUint32(12,cs,true);e.setUint32(16,off,true);return new Blob([...parts,...cen,new Uint8Array(e.buffer)])}
+function toast(t){const el=$('#toast');el.textContent=t;el.hidden=false;clearTimeout(toast.t);toast.t=setTimeout(()=>el.hidden=true,2600)}
+$('#copy').addEventListener('click',()=>{const t=JSON.stringify(patch,null,1);try{navigator.clipboard.writeText(t).then(()=>toast('Patch copied'),()=>toast('Copy was blocked here'))}catch(e){toast('Copy was blocked here')}});
+
+build();let vr=0;document.querySelectorAll('.chip').forEach(ch=>{let strip=null;[...ch.children].forEach(el=>{if(el.classList.contains('ctl')&&el.querySelector('input[type=range]')){if(!strip){strip=document.createElement('div');strip.className='strip';el.before(strip)}strip.append(el);const lb=el.querySelector('label');if(lb)lb.insertAdjacentHTML('afterbegin',`<b>VR${++vr}</b>`)}else strip=null});ch.insertAdjacentHTML('afterbegin','<i class="pins l" aria-hidden="true"></i><i class="pins r" aria-hidden="true"></i>')});
+(function(){const c=$('#pcb');function paint(){const d=Math.min(devicePixelRatio||1,2),w=innerWidth,h=innerHeight;c.width=w*d;c.height=h*d;const x=c.getContext('2d');x.setTransform(d,0,0,d,0,0);x.clearRect(0,0,w,h);
+ let seed=7;const rnd=()=>(seed=(seed*16807)%2147483647)/2147483647;const G=16;x.lineCap='round';x.lineJoin='round';
+ for(let t=0;t<Math.round(w*h/9000);t++){let px=Math.round(rnd()*w/G)*G,py=Math.round(rnd()*h/G)*G;x.beginPath();x.moveTo(px,py);const segs=2+Math.floor(rnd()*4);
+  for(let s=0;s<segs;s++){const dir=Math.floor(rnd()*8),L=G*(2+Math.floor(rnd()*8)),dx=[1,1,0,-1,-1,-1,0,1][dir],dy=[0,1,1,1,0,-1,-1,-1][dir];px+=dx*L;py+=dy*L;x.lineTo(px,py)}
+  x.strokeStyle=t%5?'rgba(120,190,140,.07)':'rgba(207,166,74,.10)';x.lineWidth=t%7?3:6;x.stroke();x.beginPath();x.arc(px,py,4.5,0,7);x.fillStyle='rgba(207,166,74,.16)';x.fill();x.beginPath();x.arc(px,py,1.8,0,7);x.fillStyle='#082016';x.fill()}}
+ paint();let t;addEventListener('resize',()=>{clearTimeout(t);t=setTimeout(paint,150)})})();
+changed();
+})();
+</script>
+</body>
+</html>

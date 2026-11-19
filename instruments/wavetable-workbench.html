@@ -1,0 +1,396 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Wavetable Workbench</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Azeret+Mono:wght@400;500;700&family=Saira+Stencil+One&display=swap">
+<style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;font:14px/1.4 system-ui,-apple-system,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style>
+</head>
+<body>
+<script>/* Local shim: inside claude.ai artifacts window.claude.use() provides capabilities.
+Outside it, give the page a 'downloads' capability that saves via a normal link; 'sample' (Claude calls) stays unavailable,
+so pages fall back to their built-in rules. */
+if(!window.claude){window.claude={use:async n=>n==='downloads'?{save:async({filename,data})=>{const b=data instanceof Blob?data:new Blob([data]);const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=filename;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),4000);return{status:'saved'}}}:null}}</script>
+<style>
+/* Layout: the board laid flat — oscillator map and keybed on top, wave memory across the full width, then chip, oscillator pair, filter and amp blocks */
+:root{
+  --mask:#0a2218; --mask2:#0e2d20; --trace:#1d4b36; --silk:#efe9d6; --silkdim:#93b39e;
+  --pad:#d9b45a; --led:#ff5a3c; --phos:#8cffb4; --env:#ffd166;
+  --display:"Saira Stencil One","Arial Black",system-ui,sans-serif;
+  --mono:"Azeret Mono",ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  color-scheme:dark;
+}
+html,body{min-height:100%}
+body{background:var(--mask);color:var(--silk);font:13px/1.5 var(--mono);
+  background-image:repeating-linear-gradient(90deg,transparent 0 63px,rgba(29,75,54,.35) 63px 64px),repeating-linear-gradient(0deg,transparent 0 63px,rgba(29,75,54,.25) 63px 64px)}
+.wrap{max-width:1180px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:20px 40px;display:grid;gap:18px}
+header{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:12px 24px}
+h1{margin:0;font:400 clamp(28px,5.6vw,46px)/1 var(--display);letter-spacing:.02em}
+h1 small{display:block;font:500 10px/1.6 var(--mono);letter-spacing:.18em;color:var(--silkdim);text-transform:uppercase;margin-top:6px}
+.bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+select,button,input[type=number]{font:500 12px var(--mono);color:var(--silk);background:var(--mask2);border:1px solid var(--trace);border-radius:2px;padding:8px 10px}
+button{cursor:pointer}
+button:hover{border-color:var(--silkdim)}
+button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid var(--phos);outline-offset:2px}
+.mon{border:1px solid var(--trace);background:#04130c}
+#om{display:block;width:100%;height:170px}
+.monbar{display:flex;flex-wrap:wrap;gap:4px 18px;padding:8px 12px;border-top:1px solid var(--trace);font-size:11px;color:var(--silkdim);font-variant-numeric:tabular-nums}
+.monbar b{color:var(--phos);font-weight:500}
+.keys{overflow-x:auto;padding-bottom:4px}
+.kb{position:relative;display:flex;height:100px;min-width:520px;user-select:none;-webkit-user-select:none;touch-action:none}
+.kb .w{flex:1;background:var(--silk);border:1px solid var(--mask);border-radius:0 0 3px 3px;color:var(--mask);font-size:9px;display:flex;align-items:flex-end;justify-content:center;padding-bottom:6px}
+.kb .b{position:absolute;top:0;height:62%;background:#061a11;border:1px solid var(--trace);border-radius:0 0 3px 3px;z-index:1}
+.kb .on{background:var(--pad)!important}
+.hint{font-size:11px;color:var(--silkdim);margin:6px 0 0}
+.board{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px;align-items:start}
+.chip{border:1px solid var(--silkdim);border-radius:2px;padding:12px 14px 14px;position:relative;background:rgba(14,45,32,.7);display:grid;gap:12px;min-width:0}
+.chip::before{content:"";position:absolute;top:-1px;left:50%;width:22px;height:9px;margin-left:-11px;border:1px solid var(--silkdim);border-top:0;border-radius:0 0 11px 11px;background:var(--mask)}
+.chip.wide{grid-column:1/-1}
+.chip h2{margin:0;display:flex;justify-content:space-between;gap:8px;font:700 11px var(--mono);letter-spacing:.14em;text-transform:uppercase}
+.chip h2 span{color:var(--pad);margin-right:8px}
+.chip h2 em{font-style:normal;font-weight:500;color:var(--phos);letter-spacing:.04em;text-transform:none;font-variant-numeric:tabular-nums;text-align:right}
+.ctl{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 10px;align-items:center}
+.ctl label,.ctl .lbl{font-size:11px;color:var(--silkdim)}
+.ctl output{font-size:11px;font-variant-numeric:tabular-nums;text-align:right}
+.ctl input[type=range],.ctl .seg{grid-column:1/-1}
+input[type=range]{-webkit-appearance:none;appearance:none;height:22px;background:transparent;margin:0;width:100%}
+input[type=range]::-webkit-slider-runnable-track{height:2px;background:var(--trace)}
+input[type=range]::-moz-range-track{height:2px;background:var(--trace)}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;margin-top:-6px;border-radius:50%;background:var(--pad);border:2px solid var(--mask);box-shadow:0 0 0 1px var(--pad)}
+input[type=range]::-moz-range-thumb{width:12px;height:12px;border-radius:50%;background:var(--pad);border:2px solid var(--mask)}
+.seg{display:flex;flex-wrap:wrap;gap:4px}
+.seg button{padding:5px 8px;font-size:11px}
+.seg button[aria-pressed="true"]{background:var(--silk);color:var(--mask);border-color:var(--silk)}
+.memgrid{display:grid;grid-template-columns:minmax(0,1fr);gap:12px}
+@media (min-width:820px){.memgrid{grid-template-columns:minmax(0,1.1fr) minmax(0,1fr)}}
+#mem{display:block;width:100%;height:46px;border:1px solid var(--trace);background:#04130c}
+#wv{display:block;width:100%;height:120px;border:1px solid var(--trace);background:#04130c;touch-action:none}
+#wv.draw{cursor:crosshair}
+.slots{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px}
+.slots button{text-align:left;font-size:11px;padding:6px 8px;display:flex;justify-content:space-between;gap:6px}
+.slots button i{font-style:normal;color:var(--silkdim)}
+.slots button[aria-pressed="true"]{background:var(--silk);color:var(--mask);border-color:var(--silk)}
+.slots button[aria-pressed="true"] i{color:var(--mask)}
+.note{font-size:11px;color:var(--silkdim);margin:0;max-width:72ch}
+.io{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.io label{font-size:11px;color:var(--silkdim);display:flex;align-items:center;gap:6px}
+.io input[type=number]{width:72px}
+details{border:1px solid var(--trace);padding:10px 12px}
+summary{cursor:pointer;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--silkdim)}
+textarea{width:100%;min-height:150px;margin-top:10px;background:#04130c;color:var(--phos);border:1px solid var(--trace);font:11px/1.5 var(--mono);box-sizing:border-box}
+#toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--silk);color:var(--mask);padding:8px 14px;font-size:12px;border-radius:2px;z-index:5;max-width:calc(100% - 32px)}
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>Wavetable Workbench<small>32-oscillator 8-bit wavetable · modeled on the Ensoniq 5503 DOC (mid-1980s)</small></h1>
+    <div class="bar">
+      <select id="preset" aria-label="Preset"></select>
+      <button id="rand" type="button">Randomize</button>
+      <button id="panic" type="button">All off</button>
+    </div>
+  </header>
+
+  <section class="mon" aria-label="Oscillator map and output">
+    <canvas id="om"></canvas>
+    <div class="monbar" id="ro"></div>
+  </section>
+
+  <section>
+    <div class="bar" style="justify-content:space-between;margin-bottom:6px"><span class="note" id="oct"></span><span class="bar"><button id="octD" type="button">Octave down</button><button id="octU" type="button">Octave up</button></span></div>
+    <div class="keys"><div class="kb" id="kb"></div></div>
+    <p class="hint">Each note takes an oscillator pair. Z–M and Q–I on a keyboard.</p>
+  </section>
+
+  <section class="board" id="board">
+    <div class="chip wide">
+      <h2><div><span>U2</span>Wave memory</div><em id="memro"></em></h2>
+      <canvas id="mem" aria-label="Wave memory map"></canvas>
+      <div class="memgrid">
+        <div style="display:grid;gap:10px;min-width:0">
+          <div class="slots" id="slots" role="group" aria-label="Wave slots"></div>
+          <div class="bar"><select id="gen" aria-label="Waveform to generate"></select><button id="genB" type="button">Generate into slot</button></div>
+          <div class="bar"><button id="loadB" type="button">Load audio into slot</button><input id="loadF" type="file" accept="audio/*" hidden>
+            <select id="ldLen" aria-label="Maximum sample length"><option value="4096">4K</option><option value="8192">8K</option><option value="16384" selected>16K</option><option value="32768">32K</option></select>
+            <select id="ldRoot" aria-label="Root note of loaded sample"></select></div>
+          <p class="note">Single-cycle tables can be drawn on. Loaded audio is resampled to 26.3 kHz, cut to the chosen length and stored as 8-bit, stopping at its end marker like the chip's one-shot samples.</p>
+        </div>
+        <div style="min-width:0"><canvas id="wv" aria-label="Selected wave. Drag to draw on single-cycle tables."></canvas><p class="note" id="wvro"></p></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="io">
+    <label>Hold <input id="hold" type="number" min="0.05" max="10" step="0.05" value="1"> s</label>
+    <label>Length <input id="len" type="number" min="0.1" max="20" step="0.1" value="2.5"> s</label>
+    <button id="exp" type="button" hidden>Export audio (.zip)</button>
+    <button id="copy" type="button">Copy patch</button>
+  </section>
+  <p class="note">Export plays the last notes you held (or middle C). Patches store settings and generated wave recipes; loaded audio stays in this browser's wave memory and is not part of the patch. Frequency registers and update rates follow the chip's design; the filter stage stands in for the analog filters boards placed after the chip.</p>
+  <details><summary>Patch JSON</summary><textarea id="json" aria-label="Patch JSON. Paste a patch here to load it."></textarea></details>
+</div>
+<div id="toast" hidden></div>
+
+<script>
+(()=>{
+const $=s=>document.querySelector(s);
+const SR0=26320;
+/* ===== core: oscillator pairs + board filter, shared by audio thread and export ===== */
+const DSP=`class DOC{
+ constructor(sr){this.sr=sr;this.W=[];this.c=null;this.R=26320;this.v=[];this.ua=0;this.age=0;this.cnt=0;this.sc=new Float32Array(512);this.si=0;this.act=new Float32Array(32);this.info=null;this.maxV=16}
+ setWaves(w){this.W=w}
+ setCfg(c){this.c=c;this.R=894886/(c.oscs+2);this.maxV=Math.max(1,c.oscs>>1);if(this.v.length>this.maxV)this.v.length=this.maxV}
+ inc(o,n){const w=this.W[o.wave];if(!w)return null;const semi=n+o.coarse+o.fine/100;
+  const t=w.cyc?440*Math.pow(2,(semi-69)/12)*w.d.length/this.R:(w.sr/this.R)*Math.pow(2,(semi-w.root)/12);
+  let S=Math.floor(Math.log2(65535/Math.max(1e-9,t)));S=S<9?9:S>16?16:S;let f=Math.round(t*Math.pow(2,S));f=f<1?1:f>65535?65535:f;return{inc:f/Math.pow(2,S),f,S,t}}
+ noteOn(n){const c=this.c;if(!c)return;let v=this.v.find(x=>x.n===n&&x.st<5);
+  if(!v){if(this.v.length<this.maxV){v={};this.v.push(v)}else v=this.v.reduce((a,b)=>a.st===5?a:b.st===5?b:(a.age<b.age?a:b))}
+  const A=this.inc(c.A,n),B=this.inc(c.B,n);
+  Object.assign(v,{n,age:++this.age,st:1,e:v.st&&v.st<5?v.e:0,fst:1,fe:0,pa:0,pb:0,ra:A?1:0,rb:B&&c.pair!==3?1:0,ia:A?A.inc:0,ib:B?B.inc:0,cur:0,prev:0,y:[0,0,0,0],g:0});
+  if(A)this.info={n,f:A.f,S:A.S,want:A.t,act:A.inc}}
+ noteOff(n){for(const v of this.v)if(v.n===n&&v.st<4){v.st=4;v.fst=4}}
+ panic(){this.v.length=0}
+ upd(v){const c=this.c,WA=this.W[c.A.wave],WB=this.W[c.B.wave];let a=128,b=128,wrap=false;
+  if(v.ra&&WA){const L=WA.d.length;v.pa+=v.ia;if(v.pa>=L){if(c.A.mode===1||c.pair===3){v.ra=0;if(c.pair===3&&WB){v.rb=1;v.pb=0}}else{v.pa-=L*Math.floor(v.pa/L);wrap=true}}
+   if(v.ra){a=WA.d[v.pa|0];if(a===0){v.ra=0;a=128;if(c.pair===3&&WB){v.rb=1;v.pb=0}}}}
+  if(c.pair===1&&wrap)v.pb=0;
+  if(v.rb&&WB){const L=WB.d.length;v.pb+=v.ib;if(v.pb>=L){if(c.B.mode===1)v.rb=0;else v.pb-=L*Math.floor(v.pb/L)}if(v.rb){b=WB.d[v.pb|0];if(b===0){v.rb=0;b=128}}}
+  const la=c.A.level/255,lb=c.B.level/255,sb=(b-128)/128;
+  if(c.pair===2)return v.rb?sb*lb*(v.ra?a/255:0):0;
+  return(v.ra?(a-128)/128*la:0)+(v.rb?sb*lb:0)}
+ adv(e,st,p){const sr=this.sr;
+  if(st===1){e+=1/Math.max(1,p.a*sr/1000);if(e>=1){e=1;st=2}}else if(st===2){e-=(1-p.s)/Math.max(1,p.d*sr/1000);if(e<=p.s){e=p.s;st=3}}
+  else if(st===3)e=p.s;else if(st===4){e-=1/Math.max(1,p.r*sr/1000);if(e<=0){e=0;st=5}}return[e,st]}
+ next(){const c=this.c;if(!c)return 0;this.ua+=this.R/this.sr;const n=Math.floor(this.ua);this.ua-=n;const fr=this.ua;let sum=0;this.cnt=(this.cnt+1)|0;
+  for(let i=0;i<16;i++){const v=this.v[i];if(!v||v.st===5){this.act[2*i]=this.act[2*i+1]=0;continue}
+   for(let k=0;k<n;k++){v.prev=v.cur;v.cur=this.upd(v)}
+   let x=c.interp?v.prev+(v.cur-v.prev)*fr:v.cur;
+   [v.e,v.st]=this.adv(v.e,v.st,c.ae);[v.fe,v.fst]=this.adv(v.fe,v.fst===5?3:v.fst,c.fe);
+   if(c.filt){if((this.cnt&7)===0||!v.g){let fc=c.cut*Math.pow(2,c.famt*v.fe+c.kt*(v.n-60)/12);fc=fc<20?20:fc>this.sr*.45?this.sr*.45:fc;v.g=1-Math.exp(-2*Math.PI*fc/this.sr)}
+    const y=v.y,g=v.g,u=Math.tanh(x*1.5-c.res*4*y[3]);y[0]+=g*(u-y[0]);y[1]+=g*(y[0]-y[1]);y[2]+=g*(y[1]-y[2]);y[3]+=g*(y[2]-y[3]);x=y[3]*(1+c.res)}
+   x*=v.e;sum+=x;this.act[2*i]=v.ra?(c.pair===2?.6:c.A.level/255)*v.e:0;this.act[2*i+1]=v.rb?c.B.level/255*v.e:0}
+  const out=Math.tanh(sum*c.master*.6);this.sc[this.si]=out;this.si=(this.si+1)&511;return out}
+}`;
+const DOC=new Function(DSP+';return DOC')();
+const WK=DSP+`
+class W extends AudioWorkletProcessor{constructor(){super();this.c=new DOC(sampleRate);this.n=0;
+ this.port.onmessage=e=>{const d=e.data,c=this.c;if(d.waves)c.setWaves(d.waves);if(d.cfg)c.setCfg(d.cfg);if(d.on!==undefined)c.noteOn(d.on);if(d.off!==undefined)c.noteOff(d.off);if(d.panic)c.panic()}}
+ process(i,o){const out=o[0],ch=out[0];for(let k=0;k<ch.length;k++)ch[k]=this.c.next();for(let c=1;c<out.length;c++)out[c].set(ch);
+  if(++this.n%8===0)this.port.postMessage({act:this.c.act.slice(),sc:this.c.sc.slice(),si:this.c.si,info:this.c.info});return true}}
+registerProcessor('doc',W);`;
+
+/* ===== wave memory ===== */
+const q8=x=>{const v=Math.round(128+Math.max(-1,Math.min(1,x))*126);return v<1?1:v>255?255:v};
+const CYC={saw:t=>1-2*t,square:t=>t<.5?.85:-.85,pulse:t=>t<.18?.85:-.85,sine:t=>Math.sin(2*Math.PI*t),tri:t=>t<.5?4*t-1:3-4*t,
+ organ:t=>{const a=2*Math.PI*t;return(Math.sin(a)+.5*Math.sin(2*a)+.35*Math.sin(4*a)+.25*Math.sin(8*a))/1.6},
+ hollow:t=>{const a=2*Math.PI*t;let s=0;for(let h=1;h<16;h+=2)s+=Math.sin(h*a)/h;return s*.95},
+ formant:t=>{const a=2*Math.PI*t;let s=0;for(let h=1;h<=24;h++){const g=Math.exp(-((h-3)**2)/2)+.7*Math.exp(-((h-10)**2)/4)+.15/h;s+=g*Math.sin(h*a)}return s/2.2},
+ steps:t=>[-.8,-.3,.2,.8,.4,0,-.4,-.6][Math.floor(t*8)]};
+const GENS=[['saw','Saw (cycle)'],['square','Square (cycle)'],['pulse','Pulse (cycle)'],['sine','Sine (cycle)'],['tri','Triangle (cycle)'],['organ','Organ (cycle)'],['hollow','Hollow (cycle)'],['formant','Formant (cycle)'],['steps','Steps (cycle)'],
+ ['noise','Noise loop 4K'],['pluck','Plucked string 8K'],['bell','Bell 16K'],['blank','Blank (draw your own)']];
+function generate(kind,size){
+ if(CYC[kind]){const L=size||256,d=new Uint8Array(L);for(let i=0;i<L;i++)d[i]=q8(CYC[kind](i/L));return{name:GENS.find(g=>g[0]===kind)[1].replace(' (cycle)',''),cyc:1,d,recipe:kind}}
+ if(kind==='blank'){const d=new Uint8Array(256).fill(128);return{name:'Drawn',cyc:1,d,recipe:'blank'}}
+ if(kind==='noise'){const d=new Uint8Array(4096);for(let i=0;i<4096;i++)d[i]=q8(Math.random()*1.8-.9);return{name:'Noise',cyc:0,sr:SR0,root:60,d,recipe:'noise'}}
+ if(kind==='pluck'){const L=8192,N=Math.round(SR0/261.63),f=new Float32Array(L);for(let i=0;i<N;i++)f[i]=Math.random()*2-1;for(let i=N;i<L;i++)f[i]=.5*(f[i-N]+f[i-N-1])*.997;
+  const pk=f.reduce((m,v)=>Math.max(m,Math.abs(v)),0),d=new Uint8Array(L);for(let i=0;i<L;i++)d[i]=q8(f[i]/pk*.95);return{name:'Pluck',cyc:0,sr:SR0,root:60,d,recipe:'pluck'}}
+ if(kind==='bell'){const L=16384,d=new Uint8Array(L),P=[[1,1,1.6],[2.76,.6,.9],[5.4,.4,.5],[8.93,.25,.3]];for(let i=0;i<L;i++){const t=i/SR0;let s=0;for(const [r,a,dc] of P)s+=a*Math.exp(-t/dc)*Math.sin(2*Math.PI*261.63*r*t);d[i]=q8(s/2.1)}
+  d[L-1]=0;return{name:'Bell',cyc:0,sr:SR0,root:60,d,recipe:'bell'}}}
+const defaultMem=()=>[generate('saw',256),generate('square',256),generate('organ',256),generate('formant',512),generate('noise'),generate('pluck'),generate('bell'),generate('hollow',256)];
+const b64=u=>{let s='';for(let i=0;i<u.length;i+=8192)s+=String.fromCharCode.apply(null,u.subarray(i,i+8192));return btoa(s)};
+const unb64=s=>{const b=atob(s),u=new Uint8Array(b.length);for(let i=0;i<b.length;i++)u[i]=b.charCodeAt(i);return u};
+let MEM;try{const m=JSON.parse(localStorage.getItem('doc-mem'));if(Array.isArray(m)&&m.length===8)MEM=m.map(s=>({name:String(s.name).slice(0,24),cyc:s.cyc?1:0,sr:+s.sr||SR0,root:+s.root||60,d:unb64(s.d),recipe:s.recipe||null}))}catch(e){}
+if(!MEM||MEM.some(s=>!s.d.length||(s.d.length&(s.d.length-1))))MEM=defaultMem();
+const memUsed=()=>MEM.reduce((a,s)=>a+s.d.length,0);
+function saveMem(){try{localStorage.setItem('doc-mem',JSON.stringify(MEM.map(s=>({name:s.name,cyc:s.cyc,sr:s.sr,root:s.root,recipe:s.recipe,d:b64(s.d)}))))}catch(e){toast('Wave memory could not be saved in this browser; it will reset on reload.')}}
+function pushWaves(){send({waves:MEM.map(s=>({d:s.d.slice(),cyc:s.cyc,sr:s.sr,root:s.root}))})}
+
+/* ===== patch ===== */
+const PAIRS=['Independent','Sync','AM','Swap'];
+const PAIRN=['Both oscillators sound.','A restarts B each time A finishes its table (hard sync).','A’s wave sets B’s volume; A itself is silent.','A plays once, then hands off to B: an attack followed by a loop.'];
+const DEF={name:'Init',oscs:32,interp:0,A:{wave:0,mode:0,coarse:0,fine:0,level:220},B:{wave:1,mode:0,coarse:0,fine:6,level:0},pair:0,
+ filt:1,cut:2400,res:.25,famt:2,kt:.5,fe:{a:2,d:400,s:.3,r:300},ae:{a:3,d:300,s:.8,r:300},master:.9};
+const P=o=>{const p=JSON.parse(JSON.stringify(DEF));for(const k in o){if(o[k]&&typeof o[k]==='object')Object.assign(p[k],o[k]);else p[k]=o[k]}return p};
+const PRESETS=[
+ P({name:'Glass organ',A:{wave:2,level:200},B:{wave:7,coarse:12,fine:4,level:120},filt:0,ae:{a:5,d:200,s:.8,r:300}}),
+ P({name:'Sync lead',A:{wave:0,level:50},B:{wave:1,coarse:7,level:230},pair:1,cut:3000,res:.3,famt:2,fe:{a:1,d:400,s:.3,r:300}}),
+ P({name:'AM tremble',A:{wave:3,coarse:-24,level:255},B:{wave:0,level:255},pair:2,cut:5000,res:.1,famt:0,ae:{a:20,d:300,s:.9,r:400}}),
+ P({name:'Swap pluck',A:{wave:5,mode:1,level:255},B:{wave:0,level:120},pair:3,cut:1200,res:.4,famt:3,fe:{a:0,d:600,s:.2,r:400},ae:{a:0,d:1200,s:.5,r:500}}),
+ P({name:'Wind',A:{wave:4,level:255},B:{wave:0,level:0},cut:400,res:.8,famt:4,kt:0,fe:{a:1500,d:2000,s:.3,r:1500},ae:{a:800,d:10,s:1,r:1500}}),
+ P({name:'Formant pad',A:{wave:3,level:200},B:{wave:3,fine:9,level:180},cut:2500,res:.2,famt:1,fe:{a:600,d:1000,s:.6,r:1000},ae:{a:600,d:500,s:.9,r:1200}}),
+ P({name:'Grit bass',interp:0,A:{wave:1,coarse:-12,level:220},B:{wave:0,coarse:-12,fine:-6,level:200},cut:300,res:.5,famt:4,fe:{a:0,d:250,s:0,r:200},ae:{a:0,d:500,s:.7,r:120}}),
+ P({name:'Bell',A:{wave:6,mode:1,level:255},B:{wave:0,level:0},filt:0,ae:{a:0,d:3000,s:0,r:800}})];
+function sanitize(o){const p=P({});if(!o||typeof o!=='object')return p;const n=(v,a,b,d)=>{v=+v;return isFinite(v)?Math.max(a,Math.min(b,v)):d};
+ if(o.name!==undefined)p.name=String(o.name).slice(0,40);p.oscs=n(o.oscs,2,32,32)&~1;p.interp=o.interp?1:0;p.pair=n(o.pair,0,3,0)|0;p.filt=o.filt===0?0:1;
+ for(const k of ['A','B'])if(o[k])p[k]={wave:n(o[k].wave,0,7,p[k].wave)|0,mode:o[k].mode?1:0,coarse:n(o[k].coarse,-36,36,0)|0,fine:n(o[k].fine,-100,100,0),level:n(o[k].level,0,255,p[k].level)|0};
+ p.cut=n(o.cut,40,18000,DEF.cut);p.res=n(o.res,0,.95,DEF.res);p.famt=n(o.famt,-4,6,DEF.famt);p.kt=n(o.kt,0,1,DEF.kt);p.master=n(o.master,0,1.5,DEF.master);
+ for(const k of ['fe','ae'])if(o[k])p[k]={a:n(o[k].a,0,5000,DEF[k].a),d:n(o[k].d,0,5000,DEF[k].d),s:n(o[k].s,0,1,DEF[k].s),r:n(o[k].r,0,5000,DEF[k].r)};
+ if(Array.isArray(o.waves))o.waves.forEach((r,i)=>{if(i<8&&r&&r.recipe&&(CYC[r.recipe]||['noise','pluck','bell','blank'].includes(r.recipe))){const g=generate(r.recipe,r.size);if(g)MEM[i]=g}});
+ return p}
+let patch;try{const s=localStorage.getItem('doc-patch');patch=s?sanitize(JSON.parse(s)):null}catch(e){}if(!patch)patch=JSON.parse(JSON.stringify(PRESETS[0]));
+const exportPatch=()=>Object.assign(JSON.parse(JSON.stringify(patch)),{waves:MEM.map(s=>s.recipe?{recipe:s.recipe,size:s.d.length}:{recipe:null,note:'user audio, not included'})});
+
+/* ===== audio ===== */
+let AC=null,node=null,local=null,ACT=null,SC=null,SI=0,INFO=null,starting=null;
+async function audio(){if(AC){if(AC.state==='suspended')AC.resume();return}if(starting)return starting;starting=(async()=>{
+ try{AC=new (window.AudioContext||window.webkitAudioContext)()}catch(e){toast('Audio is unavailable in this browser');return}
+ try{await AC.audioWorklet.addModule(URL.createObjectURL(new Blob([WK],{type:'application/javascript'})));node=new AudioWorkletNode(AC,'doc',{outputChannelCount:[2]});
+  node.port.onmessage=e=>{ACT=e.data.act;SC=e.data.sc;SI=e.data.si;if(e.data.info)INFO=e.data.info}}
+ catch(e){local=new DOC(AC.sampleRate);node=AC.createScriptProcessor(1024,0,2);node.onaudioprocess=ev=>{const a=ev.outputBuffer.getChannelData(0),b=ev.outputBuffer.getChannelData(1);for(let i=0;i<a.length;i++)a[i]=b[i]=local.next();ACT=local.act;SC=local.sc;SI=local.si;if(local.info)INFO=local.info}}
+ const g=AC.createGain();g.gain.value=.8;node.connect(g).connect(AC.destination);pushWaves();send({cfg:patch});if(AC.state==='suspended')AC.resume()})();return starting}
+function send(m){if(!node)return;if(local){if(m.waves)local.setWaves(m.waves);if(m.cfg)local.setCfg(JSON.parse(JSON.stringify(m.cfg)));if(m.on!==undefined)local.noteOn(m.on);if(m.off!==undefined)local.noteOff(m.off);if(m.panic)local.panic()}else node.port.postMessage(m)}
+const held=new Map(),lastNotes=new Set();
+async function noteOn(n,src){await audio();if(held.has(src))return;if(!held.size)lastNotes.clear();held.set(src,n);lastNotes.add(n);send({on:n})}
+function noteOff(src){const n=held.get(src);if(n===undefined)return;held.delete(src);if(![...held.values()].includes(n))send({off:n})}
+
+/* ===== panels ===== */
+const binds=[];const NN=['C','C♯','D','D♯','E','F','F♯','G','G♯','A','A♯','B'],noteName=n=>NN[((n%12)+12)%12]+(Math.floor(n/12)-1);
+const kHz=f=>(f/1000).toFixed(2)+' kHz',ms=v=>v>=1000?(v/1000).toFixed(2)+' s':Math.round(v)+' ms';
+function mkSeg(labels,get,set){const seg=document.createElement('div');seg.className='seg';labels.forEach((l,i)=>{const b=document.createElement('button');b.type='button';b.textContent=l;b.addEventListener('click',()=>{set(i);changed()});seg.append(b)});
+ binds.push(()=>[...seg.children].forEach((b,i)=>{b.setAttribute('aria-pressed',String(i===get()));if(typeof labels==='function')b.textContent=labels()[i]}));return seg}
+function row(label,el,out){const r=document.createElement('div');r.className='ctl';const id='i'+Math.random().toString(36).slice(2,8);
+ if(el.tagName==='INPUT'){el.id=id;r.innerHTML=`<label for="${id}">${label}</label>`}else{r.innerHTML=`<span class="lbl" id="${id}">${label}</span>`;el.setAttribute('role','group');el.setAttribute('aria-labelledby',id)}
+ const o=document.createElement('output');r.append(o,el);if(out)binds.push(()=>{o.textContent=out()});return r}
+function rng(min,max,st,get,set,log){const r=document.createElement('input');r.type='range';if(log){r.min=0;r.max=1000;r.step=1}else{r.min=min;r.max=max;r.step=st}
+ const toV=x=>log?min*Math.pow(max/min,x/1000):+x,fromV=v=>log?Math.round(Math.log(v/min)/Math.log(max/min)*1000):v;
+ r.addEventListener('input',()=>{set(log?Math.round(toV(r.value)):+r.value);changed(true)});binds.push(()=>{r.value=fromV(get())});return r}
+function chip(u,t,wide){const c=document.createElement('div');c.className='chip'+(wide?' wide':'');c.innerHTML=`<h2><div><span>${u}</span>${t}</div><em></em></h2>`;$('#board').append(c);return c}
+function build(){
+ const c1=chip('U1','Chip'),e1=c1.querySelector('em');$('#board').prepend(c1);binds.push(()=>{e1.textContent=`${kHz(894886/(patch.oscs+2))} · ${patch.oscs>>1} voices`});
+ c1.append(row('Oscillators enabled',rng(2,32,2,()=>patch.oscs,v=>patch.oscs=v),()=>patch.oscs+' of 32'));
+ c1.append(row('Between updates',mkSeg(['Hold (chip)','Linear'],()=>patch.interp,v=>patch.interp=v)));
+ const pn=document.createElement('p');pn.className='note';pn.textContent='Fewer oscillators means each one updates faster: cleaner, with fewer voices. All 32 gives the grainiest sound.';c1.append(pn);
+ for(const k of ['A','B']){const c=chip(k==='A'?'U3':'U4','Oscillator '+k),em=c.querySelector('em');const o=()=>patch[k];
+  binds.push(()=>{const w=MEM[o().wave];em.textContent=`${w.name} · ${w.d.length>=1024?(w.d.length/1024)+'K':w.d.length}`});
+  c.append(row('Wave slot',mkSeg(()=>MEM.map((s,i)=>i+' '+s.name),()=>o().wave,v=>o().wave=v)));
+  c.append(row('Mode',mkSeg(['Loop','One-shot'],()=>o().mode,v=>o().mode=v)));
+  c.append(row('Coarse',rng(-36,36,1,()=>o().coarse,v=>o().coarse=v),()=>(o().coarse>0?'+':'')+o().coarse+' st'));
+  c.append(row('Fine',rng(-100,100,1,()=>o().fine,v=>o().fine=v),()=>(o().fine>0?'+':'')+o().fine+' cents'));
+  c.append(row('Volume register',rng(0,255,1,()=>o().level,v=>o().level=v),()=>'$'+o().level.toString(16).toUpperCase().padStart(2,'0')))}
+ const c5=chip('U5','Pair mode'),e5=c5.querySelector('em');binds.push(()=>{e5.textContent=PAIRS[patch.pair]});
+ c5.append(row('How A and B work together',mkSeg(PAIRS,()=>patch.pair,v=>patch.pair=v)));const pp=document.createElement('p');pp.className='note';c5.append(pp);binds.push(()=>{pp.textContent=PAIRN[patch.pair]});
+ const c6=chip('U6','Board filter'),e6=c6.querySelector('em');binds.push(()=>{e6.textContent=patch.filt?'4-pole low-pass':'bypassed'});
+ c6.append(row('Filter',mkSeg(['Bypass','On'],()=>patch.filt,v=>patch.filt=v)));
+ c6.append(row('Cutoff',rng(40,18000,0,()=>patch.cut,v=>patch.cut=v,1),()=>patch.cut>=1000?kHz(patch.cut):patch.cut+' Hz'));
+ c6.append(row('Resonance',rng(0,.95,.01,()=>patch.res,v=>patch.res=v),()=>Math.round(patch.res*100)+'%'));
+ c6.append(row('Envelope amount',rng(-4,6,.1,()=>patch.famt,v=>patch.famt=v),()=>(patch.famt>0?'+':'')+patch.famt.toFixed(1)+' oct'));
+ c6.append(row('Key tracking',rng(0,1,.01,()=>patch.kt,v=>patch.kt=v),()=>Math.round(patch.kt*100)+'%'));
+ for(const [k,l,max] of [['a','Attack',5000],['d','Decay',5000],['s','Sustain',1],['r','Release',5000]])c6.append(row('Filter '+l.toLowerCase(),rng(0,max,k==='s'?.01:1,()=>patch.fe[k],v=>patch.fe[k]=v),()=>k==='s'?Math.round(patch.fe.s*100)+'%':ms(patch.fe[k])));
+ const c7=chip('U7','Amplifier');
+ for(const [k,l,max] of [['a','Attack',5000],['d','Decay',5000],['s','Sustain',1],['r','Release',5000]])c7.append(row(l,rng(0,max,k==='s'?.01:1,()=>patch.ae[k],v=>patch.ae[k]=v),()=>k==='s'?Math.round(patch.ae.s*100)+'%':ms(patch.ae[k])));
+ c7.append(row('Master',rng(0,1.5,.01,()=>patch.master,v=>patch.master=v),()=>Math.round(patch.master*100)+'%'))}
+let saveT=0;
+function changed(soft){send({cfg:patch});binds.forEach(f=>f());markCustom();if(document.activeElement!==$('#json'))$('#json').value=JSON.stringify(exportPatch(),null,1);
+ clearTimeout(saveT);saveT=setTimeout(()=>{try{localStorage.setItem('doc-patch',JSON.stringify(patch))}catch(e){}},300)}
+
+/* ===== wave memory UI ===== */
+let sel=0;
+const gen=$('#gen');GENS.forEach(([k,l])=>{const o=document.createElement('option');o.value=k;o.textContent=l;gen.append(o)});
+const ldRoot=$('#ldRoot');for(let n=36;n<=84;n++){const o=document.createElement('option');o.value=n;o.textContent='Root '+noteName(n);if(n===60)o.selected=true;ldRoot.append(o)}
+function drawSlots(){const S=$('#slots');S.innerHTML='';MEM.forEach((s,i)=>{const b=document.createElement('button');b.type='button';b.setAttribute('aria-pressed',String(i===sel));
+  b.innerHTML=`<span>${i} ${s.name}</span><i>${s.d.length>=1024?(s.d.length/1024)+'K':s.d.length}${s.cyc?' cyc':' smp'}</i>`;b.addEventListener('click',()=>{sel=i;drawSlots();drawWave()});S.append(b)});
+ $('#memro').textContent=`${(memUsed()/1024).toFixed(1)} KB of 64 KB used`;drawMem()}
+const fit=c=>{const r=c.getBoundingClientRect(),d=Math.min(devicePixelRatio||1,2);if(c.width!==Math.round(r.width*d)||c.height!==Math.round(r.height*d)){c.width=Math.round(r.width*d);c.height=Math.round(r.height*d)}const x=c.getContext('2d');x.setTransform(d,0,0,d,0,0);return[x,r.width,r.height]};
+function drawMem(){const [x,w,h]=fit($('#mem'));x.clearRect(0,0,w,h);let off=0;x.font='10px "Azeret Mono",monospace';x.textBaseline='middle';
+ MEM.forEach((s,i)=>{const x0=off/65536*w,ww=s.d.length/65536*w;x.fillStyle=i===sel?'#d9b45a':(i%2?'#1d4b36':'#2a6b4c');x.fillRect(x0,0,Math.max(1,ww-1),h);
+  if(ww>14){x.fillStyle=i===sel?'#0a2218':'#efe9d6';x.fillText(String(i),x0+4,h/2)}off+=s.d.length});
+ x.strokeStyle='#123a29';for(let p=0;p<=16;p++){const X=p/16*w;x.beginPath();x.moveTo(X,h-6);x.lineTo(X,h);x.stroke()}}
+function drawWave(){const c=$('#wv'),[x,w,h]=fit(c),s=MEM[sel];x.clearRect(0,0,w,h);c.classList.toggle('draw',!!(s.cyc&&s.d.length<=1024));
+ x.strokeStyle='#123a29';x.beginPath();x.moveTo(0,h/2);x.lineTo(w,h/2);x.stroke();const n=s.d.length;x.fillStyle='#8cffb4';
+ for(let px=0;px<w;px++){const a=Math.floor(px/w*n),b=Math.max(a+1,Math.floor((px+1)/w*n));let mn=255,mx=0;for(let i=a;i<b&&i<n;i++){const v=s.d[i];if(v===0)continue;if(v<mn)mn=v;if(v>mx)mx=v}if(mx<mn)continue;
+  const y1=(1-mx/255)*h,y2=(1-mn/255)*h;x.fillRect(px,y1,1,Math.max(1,y2-y1))}
+ $('#wvro').textContent=s.cyc?`Single cycle, ${n} bytes. One pass through the table is one period.${n<=1024?' Drag to draw.':''}`:`Sample, ${n} bytes at ${(s.sr/1000).toFixed(1)} kHz, root ${noteName(s.root)}, ${(n/s.sr).toFixed(2)} s.`}
+let drawing=null;const wv=$('#wv');
+wv.addEventListener('pointerdown',e=>{const s=MEM[sel];if(!s.cyc||s.d.length>1024)return;drawing={last:null};try{wv.setPointerCapture(e.pointerId)}catch(_){}paint(e)});
+wv.addEventListener('pointermove',e=>{if(drawing)paint(e)});
+const endPaint=()=>{if(!drawing)return;drawing=null;MEM[sel].recipe=null;MEM[sel].name=MEM[sel].name.startsWith('Drawn')?MEM[sel].name:'Drawn';saveMem();pushWaves();drawSlots();binds.forEach(f=>f())};
+wv.addEventListener('pointerup',endPaint);wv.addEventListener('pointercancel',endPaint);
+function paint(e){const r=wv.getBoundingClientRect(),s=MEM[sel],n=s.d.length,i=Math.max(0,Math.min(n-1,Math.floor((e.clientX-r.left)/r.width*n))),v=Math.max(1,Math.min(255,Math.round((1-(e.clientY-r.top)/r.height)*255)));
+ if(drawing.last){const [i0,v0]=drawing.last,st=i>i0?1:-1;for(let k=i0;k!==i;k+=st)s.d[k]=Math.round(v0+(v-v0)*(k-i0)/(i-i0))}s.d[i]=v;drawing.last=[i,v];drawWave()}
+$('#genB').addEventListener('click',()=>{const k=gen.value,size=CYC[k]?(MEM[sel].cyc&&MEM[sel].d.length<=1024?MEM[sel].d.length:256):0,g=generate(k,size);
+ if(memUsed()-MEM[sel].d.length+g.d.length>65536){toast('Wave memory is full. Shrink or replace a larger slot first.');return}MEM[sel]=g;saveMem();pushWaves();drawSlots();drawWave();changed()});
+$('#loadB').addEventListener('click',()=>$('#loadF').click());
+$('#loadF').addEventListener('change',async e=>{const f=e.target.files[0];e.target.value='';if(!f)return;await audio();if(!AC)return;
+ try{const buf=await AC.decodeAudioData(await f.arrayBuffer()),ch=buf.numberOfChannels,src=buf.length,ratio=buf.sampleRate/SR0,maxL=+$('#ldLen').value;
+  const len=Math.min(maxL-1,Math.floor(src/ratio)),mono=new Float32Array(len);
+  for(let i=0;i<len;i++){const p=i*ratio,j=Math.floor(p),fr=p-j;let s=0;for(let c=0;c<ch;c++){const d=buf.getChannelData(c);s+=d[j]+(d[Math.min(src-1,j+1)]-d[j])*fr}mono[i]=s/ch}
+  let pk=0;for(const v of mono)pk=Math.max(pk,Math.abs(v));let L=256;while(L<len+1)L*=2;
+  if(memUsed()-MEM[sel].d.length+L>65536){toast(`Not enough wave memory for ${L/1024}K. Pick a shorter length or free a slot.`);return}
+  const d=new Uint8Array(L);for(let i=0;i<len;i++)d[i]=q8(pk?mono[i]/pk*.95:0);d[len]=0;
+  MEM[sel]={name:f.name.replace(/\.[^.]+$/,'').slice(0,14)||'Sample',cyc:0,sr:SR0,root:+ldRoot.value,d,recipe:null};saveMem();pushWaves();drawSlots();drawWave();changed();toast(`Loaded ${(len/SR0).toFixed(2)} s into slot ${sel}`)}
+ catch(err){toast('That file could not be decoded as audio. Try a WAV or MP3.')}});
+
+/* ===== presets / random ===== */
+const ps=$('#preset');PRESETS.forEach((p,i)=>{const o=document.createElement('option');o.value=i;o.textContent=p.name;ps.append(o)});
+function markCustom(){const s=JSON.stringify(patch),i=PRESETS.findIndex(p=>JSON.stringify(p)===s);if(i>=0){ps.value=i;return}
+ if(!$('#custom')){const o=document.createElement('option');o.value='';o.id='custom';o.textContent='Your patch';ps.prepend(o)}ps.value=''}
+ps.addEventListener('change',()=>{if(ps.value==='')return;patch=JSON.parse(JSON.stringify(PRESETS[+ps.value]));send({panic:1});changed();audition()});
+async function audition(){await audio();noteOn(60,'aud');setTimeout(()=>noteOff('aud'),500)}
+$('#rand').addEventListener('click',()=>{const r=(a,b)=>a+Math.random()*(b-a),ri=(a,b)=>Math.floor(r(a,b+1)),pick=a=>a[ri(0,a.length-1)];
+ patch=sanitize({name:'Random '+ri(0,255).toString(16).toUpperCase().padStart(2,'0'),oscs:pick([32,32,24,16,8]),interp:Math.random()<.2?1:0,pair:pick([0,0,1,2,3]),
+  A:{wave:ri(0,7),mode:Math.random()<.2?1:0,coarse:pick([0,0,-12,12,7]),fine:ri(-10,10),level:ri(150,255)},B:{wave:ri(0,7),mode:0,coarse:pick([0,0,-12,12,7,5]),fine:ri(-12,12),level:Math.random()<.2?0:ri(80,240)},
+  filt:Math.random()<.8?1:0,cut:Math.round(Math.exp(r(Math.log(200),Math.log(8000)))),res:+r(0,.8).toFixed(2),famt:+r(-1,5).toFixed(1),kt:+r(0,1).toFixed(2),
+  fe:{a:ri(0,400),d:ri(80,1500),s:+r(0,.7).toFixed(2),r:ri(80,1200)},ae:{a:pick([0,2,10,60,400]),d:ri(100,1500),s:+r(.2,1).toFixed(2),r:ri(80,1500)},master:.9});
+ send({panic:1});changed();audition()});
+$('#panic').addEventListener('click',()=>{send({panic:1});held.clear();Object.values(keyEls).forEach(k=>k.classList.remove('on'))});
+
+/* ===== keybed ===== */
+let octave=0;const kb=$('#kb'),BLK=[1,3,6,8,10],keyEls={},whites=[];
+for(let n=0;n<=24;n++){if(!BLK.includes(n%12)){const k=document.createElement('div');k.className='w';k.dataset.n=n;kb.append(k);keyEls[n]=k;whites.push(n)}}
+for(let n=0;n<=24;n++){if(BLK.includes(n%12)){const k=document.createElement('div');k.className='b';k.dataset.n=n;const l=whites.indexOf(n-1)+1;k.style.left=`calc(${l/whites.length*100}% - ${100/whites.length*.3}%)`;k.style.width=`${100/whites.length*.6}%`;kb.append(k);keyEls[n]=k}}
+const baseNote=()=>48+octave*12;
+function labelKeys(){[0,12,24].forEach(n=>{keyEls[n].textContent=noteName(baseNote()+n)});$('#oct').textContent=`Keybed ${noteName(baseNote())}–${noteName(baseNote()+24)}`}
+$('#octD').addEventListener('click',()=>{octave=Math.max(-3,octave-1);labelKeys()});$('#octU').addEventListener('click',()=>{octave=Math.min(3,octave+1);labelKeys()});labelKeys();
+kb.addEventListener('pointerdown',e=>{const k=e.target.closest('[data-n]');if(!k)return;e.preventDefault();try{kb.setPointerCapture(e.pointerId)}catch(_){}k.classList.add('on');noteOn(baseNote()+(+k.dataset.n),'p'+e.pointerId)});
+const kUp=e=>{const src='p'+e.pointerId,n=held.get(src);if(n===undefined)return;const el=keyEls[n-baseNote()];if(el)el.classList.remove('on');noteOff(src)};kb.addEventListener('pointerup',kUp);kb.addEventListener('pointercancel',kUp);
+const KM={KeyZ:0,KeyS:1,KeyX:2,KeyD:3,KeyC:4,KeyV:5,KeyG:6,KeyB:7,KeyH:8,KeyN:9,KeyJ:10,KeyM:11,Comma:12,KeyQ:12,Digit2:13,KeyW:14,Digit3:15,KeyE:16,KeyR:17,Digit5:18,KeyT:19,Digit6:20,KeyY:21,Digit7:22,KeyU:23,KeyI:24};
+const typing=t=>t.tagName==='TEXTAREA'||t.tagName==='SELECT'||(t.tagName==='INPUT'&&t.type!=='range');
+addEventListener('keydown',e=>{if(e.repeat||e.metaKey||e.ctrlKey||e.altKey||typing(e.target)||KM[e.code]===undefined)return;const n=KM[e.code];keyEls[n]&&keyEls[n].classList.add('on');noteOn(baseNote()+n,e.code)});
+addEventListener('keyup',e=>{if(KM[e.code]===undefined||!held.has(e.code))return;const el=keyEls[held.get(e.code)-baseNote()];if(el)el.classList.remove('on');noteOff(e.code)});
+addEventListener('blur',()=>{[...held.keys()].forEach(noteOff);Object.values(keyEls).forEach(k=>k.classList.remove('on'))});
+
+/* ===== monitor ===== */
+function drawMon(){requestAnimationFrame(drawMon);const [x,w,h]=fit($('#om'));x.clearRect(0,0,w,h);x.font='10px "Azeret Mono",monospace';x.textBaseline='middle';
+ const gw=Math.min(w*.42,300),cols=8,rows=4,cw=(gw-8)/cols,chh=(h-28)/rows;x.fillStyle='#93b39e';x.fillText('Oscillators',8,10);
+ for(let i=0;i<32;i++){const c=i%cols,r=Math.floor(i/cols),X=8+c*cw,Y=20+r*chh,en=i<patch.oscs,lv=ACT?ACT[i]:0;
+  x.fillStyle=en?'#0e2d20':'#06150e';x.fillRect(X,Y,cw-4,chh-4);if(lv>0){x.globalAlpha=.25+.75*Math.min(1,lv);x.fillStyle=i%2?'#d9b45a':'#8cffb4';x.fillRect(X,Y,cw-4,chh-4);x.globalAlpha=1}
+  x.strokeStyle=en?'#1d4b36':'#0e2d20';x.strokeRect(X+.5,Y+.5,cw-5,chh-5);if(cw>22){x.fillStyle=lv>0?'#0a2218':(en?'#93b39e':'#2a4a3a');x.fillText(String(i),X+4,Y+(chh-4)/2)}}
+ const L=gw+20;x.fillStyle='#93b39e';x.fillText('Output',L,10);x.strokeStyle='#123a29';x.beginPath();x.moveTo(L,h/2+6);x.lineTo(w-8,h/2+6);x.stroke();
+ if(SC){x.strokeStyle='#efe9d6';x.lineWidth=1.2;x.beginPath();for(let k=0;k<512;k++){const v=SC[(SI+k)&511],X=L+k/511*(w-L-8),Y=h/2+6-v*(h/2-14);k?x.lineTo(X,Y):x.moveTo(X,Y)}x.stroke()}
+ const R=894886/(patch.oscs+2);let s=`<span>Update rate <b>${kHz(R)}</b></span><span>Voices <b>${patch.oscs>>1}</b></span>`;
+ if(INFO){const c=1200*Math.log2(INFO.act/INFO.want);s+=`<span>Last note <b>${noteName(INFO.n)}</b> · freq <b>$${INFO.f.toString(16).toUpperCase().padStart(4,'0')}</b> res ${INFO.S-9} · <b>${c>=0?'+':''}${c.toFixed(1)} cents</b></span>`}
+ if($('#ro').innerHTML!==s)$('#ro').innerHTML=s}
+requestAnimationFrame(drawMon);
+addEventListener('resize',()=>{drawMem();drawWave()});
+
+/* ===== export / import ===== */
+function toast(t){const el=$('#toast');el.textContent=t;el.hidden=false;clearTimeout(toast.t);toast.t=setTimeout(()=>el.hidden=true,2800)}
+function wav16(f,rate){const n=f.length,buf=new ArrayBuffer(44+n*2),d=new DataView(buf),w=(o,s)=>{for(let i=0;i<4;i++)d.setUint8(o+i,s.charCodeAt(i))};
+ w(0,'RIFF');d.setUint32(4,36+n*2,true);w(8,'WAVE');w(12,'fmt ');d.setUint32(16,16,true);d.setUint16(20,1,true);d.setUint16(22,1,true);d.setUint32(24,rate,true);d.setUint32(28,rate*2,true);d.setUint16(32,2,true);d.setUint16(34,16,true);w(36,'data');d.setUint32(40,n*2,true);
+ for(let i=0;i<n;i++)d.setInt16(44+2*i,Math.max(-32768,Math.min(32767,Math.round(f[i]*32767))),true);return new Uint8Array(buf)}
+const CRC=(()=>{const t=new Uint32Array(256);for(let n=0;n<256;n++){let c=n;for(let k=0;k<8;k++)c=c&1?0xEDB88320^(c>>>1):c>>>1;t[n]=c}return u=>{let c=~0;for(let i=0;i<u.length;i++)c=t[(c^u[i])&255]^(c>>>8);return(~c)>>>0}})();
+function zip(files){const parts=[],cen=[];let off=0;const te=new TextEncoder();for(const f of files){const nm=te.encode(f.name),crc=CRC(f.data),sz=f.data.length;
+ const h=new DataView(new ArrayBuffer(30));h.setUint32(0,0x04034b50,true);h.setUint16(4,20,true);h.setUint16(12,0x21,true);h.setUint32(14,crc,true);h.setUint32(18,sz,true);h.setUint32(22,sz,true);h.setUint16(26,nm.length,true);parts.push(new Uint8Array(h.buffer),nm,f.data);
+ const c=new DataView(new ArrayBuffer(46));c.setUint32(0,0x02014b50,true);c.setUint16(4,20,true);c.setUint16(6,20,true);c.setUint16(14,0x21,true);c.setUint32(16,crc,true);c.setUint32(20,sz,true);c.setUint32(24,sz,true);c.setUint16(28,nm.length,true);c.setUint32(42,off,true);cen.push(new Uint8Array(c.buffer),nm);off+=30+nm.length+sz}
+ const cs=cen.reduce((a,b)=>a+b.length,0),e=new DataView(new ArrayBuffer(22));e.setUint32(0,0x06054b50,true);e.setUint16(8,files.length,true);e.setUint16(10,files.length,true);e.setUint32(12,cs,true);e.setUint32(16,off,true);return new Blob([...parts,...cen,new Uint8Array(e.buffer)])}
+let DL=null;(async()=>{try{DL=window.claude&&window.claude.use?await window.claude.use('downloads'):null}catch(e){DL=null}if(DL)$('#exp').hidden=false})();
+$('#exp').addEventListener('click',async()=>{const rate=44100,hold=Math.max(.05,Math.min(10,+$('#hold').value||1)),len=Math.max(.1,Math.min(20,+$('#len').value||2.5));
+ const c=new DOC(rate);c.setWaves(MEM.map(s=>({d:s.d,cyc:s.cyc,sr:s.sr,root:s.root})));c.setCfg(JSON.parse(JSON.stringify(patch)));const notes=lastNotes.size?[...lastNotes]:[60];notes.forEach(n=>c.noteOn(n));
+ const n=Math.round(len*rate),hn=Math.round(hold*rate),f=new Float32Array(n);for(let i=0;i<n;i++){if(i===hn)notes.forEach(m=>c.noteOff(m));f[i]=c.next()}
+ let pk=0;for(let i=0;i<n;i++)pk=Math.max(pk,Math.abs(f[i]));if(pk>.98)for(let i=0;i<n;i++)f[i]*=.98/pk;
+ const s=(patch.name||'patch').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'')||'patch';
+ try{await DL.save({filename:s+'.zip',data:zip([{name:s+'_44k_16bit.wav',data:wav16(f,rate)},{name:s+'.json',data:new TextEncoder().encode(JSON.stringify(exportPatch(),null,1))}])});toast('Saved '+s+'.zip')}
+ catch(e){const cd=e&&e.code;if(cd==='declined')return;if(cd==='rate_limited')toast('A save prompt is already open');else{toast('Saving is unavailable here. Copy the patch instead.');$('#exp').hidden=true}}});
+$('#copy').addEventListener('click',()=>{const t=JSON.stringify(exportPatch(),null,1),fb=()=>{document.querySelector('details').open=true;$('#json').focus();$('#json').select();toast('Selected the patch. Copy it from the box.')};
+ try{navigator.clipboard.writeText(t).then(()=>toast('Patch copied'),fb)}catch(e){fb()}});
+$('#json').addEventListener('paste',e=>{e.preventDefault();const t=(e.clipboardData||window.clipboardData).getData('text');try{patch=sanitize(JSON.parse(t));saveMem();pushWaves();drawSlots();drawWave();send({panic:1});changed();toast('Loaded '+patch.name)}catch(err){toast('That text is not a patch. Paste JSON copied from this page.')}});
+$('#json').addEventListener('keydown',e=>{if(!(e.metaKey||e.ctrlKey))e.preventDefault()});
+
+build();drawSlots();drawWave();changed();
+})();
+</script>
+</body>
+</html>

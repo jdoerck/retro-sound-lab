@@ -1,0 +1,347 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Speech Workbench</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Azeret+Mono:wght@400;500;700&family=Saira+Stencil+One&display=swap">
+<style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;font:14px/1.4 system-ui,-apple-system,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style>
+</head>
+<body>
+<script>/* Local shim: inside claude.ai artifacts window.claude.use() provides capabilities.
+Outside it, give the page a 'downloads' capability that saves via a normal link; 'sample' (Claude calls) stays unavailable,
+so pages fall back to their built-in rules. */
+if(!window.claude){window.claude={use:async n=>n==='downloads'?{save:async({filename,data})=>{const b=data instanceof Blob?data:new Blob([data]);const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=filename;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),4000);return{status:'saved'}}}:null}}</script>
+<style>
+/* Layout: the board laid flat — formant monitor and keybed on top, then each stage of the voice (phrase, phonemes, timing, source, tract, output) as a silkscreened block */
+:root{
+  --mask:#0a2218; --mask2:#0e2d20; --trace:#1d4b36; --silk:#efe9d6; --silkdim:#93b39e;
+  --pad:#d9b45a; --led:#ff5a3c; --phos:#8cffb4; --env:#ffd166;
+  --display:"Saira Stencil One","Arial Black",system-ui,sans-serif;
+  --mono:"Azeret Mono",ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  color-scheme:dark;
+}
+html,body{min-height:100%}
+body{background:var(--mask);color:var(--silk);font:13px/1.5 var(--mono);
+  background-image:repeating-linear-gradient(90deg,transparent 0 63px,rgba(29,75,54,.35) 63px 64px),repeating-linear-gradient(0deg,transparent 0 63px,rgba(29,75,54,.25) 63px 64px)}
+.wrap{max-width:1180px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:20px 40px;display:grid;gap:18px}
+header{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:12px 24px}
+h1{margin:0;font:400 clamp(30px,6vw,48px)/1 var(--display);letter-spacing:.02em}
+h1 small{display:block;font:500 10px/1.6 var(--mono);letter-spacing:.18em;color:var(--silkdim);text-transform:uppercase;margin-top:6px}
+.bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+select,button,input[type=text]{font:500 12px var(--mono);color:var(--silk);background:var(--mask2);border:1px solid var(--trace);border-radius:2px;padding:8px 10px}
+button{cursor:pointer}
+button:hover{border-color:var(--silkdim)}
+button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid var(--phos);outline-offset:2px}
+button.hot{background:var(--pad);color:var(--mask);border-color:var(--pad);font-weight:700}
+.mon{border:1px solid var(--trace);background:#04130c}
+#fm{display:block;width:100%;height:200px}
+.monbar{display:flex;flex-wrap:wrap;gap:4px 18px;padding:8px 12px;border-top:1px solid var(--trace);font-size:11px;color:var(--silkdim);font-variant-numeric:tabular-nums}
+.monbar b{color:var(--phos);font-weight:500}
+.keys{overflow-x:auto;padding-bottom:4px}
+.kb{position:relative;display:flex;height:96px;min-width:520px;user-select:none;-webkit-user-select:none;touch-action:none}
+.kb .w{flex:1;background:var(--silk);border:1px solid var(--mask);border-radius:0 0 3px 3px;color:var(--mask);font-size:9px;display:flex;align-items:flex-end;justify-content:center;padding-bottom:6px}
+.kb .b{position:absolute;top:0;height:62%;background:#061a11;border:1px solid var(--trace);border-radius:0 0 3px 3px;z-index:1}
+.kb .on{background:var(--pad)!important}
+.hint{font-size:11px;color:var(--silkdim);margin:6px 0 0}
+.board{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px;align-items:start}
+.chip{border:1px solid var(--silkdim);border-radius:2px;padding:12px 14px 14px;position:relative;background:rgba(14,45,32,.7);display:grid;gap:12px;min-width:0}
+.chip::before{content:"";position:absolute;top:-1px;left:50%;width:22px;height:9px;margin-left:-11px;border:1px solid var(--silkdim);border-top:0;border-radius:0 0 11px 11px;background:var(--mask)}
+.chip.wide{grid-column:1/-1}
+.chip h2{margin:0;display:flex;justify-content:space-between;gap:8px;font:700 11px var(--mono);letter-spacing:.14em;text-transform:uppercase}
+.chip h2 span{color:var(--pad);margin-right:8px}
+.ctl{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 10px;align-items:center}
+.ctl label,.ctl .lbl{font-size:11px;color:var(--silkdim)}
+.ctl output{font-size:11px;font-variant-numeric:tabular-nums;text-align:right}
+.ctl input[type=range],.ctl .seg{grid-column:1/-1}
+input[type=range]{-webkit-appearance:none;appearance:none;height:22px;background:transparent;margin:0;width:100%}
+input[type=range]::-webkit-slider-runnable-track{height:2px;background:var(--trace)}
+input[type=range]::-moz-range-track{height:2px;background:var(--trace)}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;margin-top:-6px;border-radius:50%;background:var(--pad);border:2px solid var(--mask);box-shadow:0 0 0 1px var(--pad)}
+input[type=range]::-moz-range-thumb{width:12px;height:12px;border-radius:50%;background:var(--pad);border:2px solid var(--mask)}
+.seg{display:flex;flex-wrap:wrap;gap:4px}
+.seg button{padding:5px 8px;font-size:11px}
+.seg button[aria-pressed="true"]{background:var(--silk);color:var(--mask);border-color:var(--silk)}
+.row{display:flex;gap:8px;flex-wrap:wrap}
+.row input[type=text]{flex:1;min-width:0}
+.strip{display:flex;flex-wrap:wrap;gap:4px;min-height:40px;padding:8px;border:1px dashed var(--trace);background:#04130c}
+.tok{display:grid;justify-items:center;gap:1px;padding:4px 6px;font-size:12px;min-width:32px}
+.tok i{font-style:normal;font-size:8px;letter-spacing:1px;color:var(--pad)}
+.tok.gap{color:var(--silkdim)}
+.pal{display:grid;gap:8px}
+.pal div{display:flex;flex-wrap:wrap;gap:4px;align-items:center}
+.pal span{font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--silkdim);width:74px;flex:none}
+.pal button{padding:5px 7px;font-size:11px;min-width:34px}
+.note{font-size:11px;color:var(--silkdim);margin:0;max-width:72ch}
+#status{min-height:1.3em}
+.io{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+#toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--silk);color:var(--mask);padding:8px 14px;font-size:12px;border-radius:2px;z-index:5;max-width:calc(100% - 32px)}
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>Speech Workbench<small>Phoneme formant synthesis · modeled on the Votrax SC-01 approach</small></h1>
+    <div class="bar">
+      <select id="preset" aria-label="Preset"></select>
+      <button id="rand" type="button">Random voice</button>
+      <button id="speak" class="hot" type="button">Speak</button>
+      <button id="stop" type="button">Stop</button>
+    </div>
+  </header>
+
+  <section class="mon" aria-label="Formant monitor">
+    <canvas id="fm"></canvas>
+    <div class="monbar" id="ro"></div>
+  </section>
+
+  <section>
+    <div class="keys"><div class="kb" id="kb"></div></div>
+    <p class="hint">Keys play the phrase at that pitch (formants stay put, only the voice moves). Z–M and Q–I on a keyboard; Space speaks.</p>
+  </section>
+
+  <section class="board" id="board">
+    <div class="chip wide" id="phrase">
+      <h2><div><span>U1</span>Phrase</div></h2>
+      <form class="row" id="txtF"><input id="txt" type="text" maxlength="160" aria-label="Text to speak" placeholder="Type words to convert"><button type="submit">Convert</button></form>
+      <p class="note" id="status"></p>
+      <div class="strip" id="strip" aria-label="Phoneme sequence. Tap a phoneme to change its inflection."></div>
+      <div class="row"><input id="codes" type="text" aria-label="Phoneme codes" spellcheck="false"><button id="bk" type="button">Delete last</button><button id="clr" type="button">Clear</button></div>
+      <p class="note">Tap a phoneme to step its inflection (0–3, shown as dots). Codes can be typed directly, e.g. <code>HH1 EH2 L1 OW1</code>; <code>/</code> is a word gap, <code>.</code> a short pause.</p>
+    </div>
+    <div class="chip wide">
+      <h2><div><span>U2</span>Phoneme set</div></h2>
+      <div class="pal" id="pal"></div>
+    </div>
+  </section>
+
+  <section class="io">
+    <button id="exp" type="button" hidden>Export audio (.zip)</button>
+    <button id="copy" type="button">Copy patch</button>
+  </section>
+</div>
+<div id="toast" hidden></div>
+
+<script>
+(()=>{
+const $=s=>document.querySelector(s),OUT=44100;
+/* ===== phoneme table (approximate adult formants; my own values) ===== */
+const PH={
+ IY:{t:'v',F:[270,2290,3010],d:170,ex:'beet'},IH:{t:'v',F:[390,1990,2550],d:120,ex:'bit'},EH:{t:'v',F:[530,1840,2480],d:130,ex:'bet'},AE:{t:'v',F:[660,1720,2410],d:170,ex:'bat'},
+ AA:{t:'v',F:[730,1090,2440],d:170,ex:'father'},AO:{t:'v',F:[570,840,2410],d:170,ex:'law'},UH:{t:'v',F:[440,1020,2240],d:120,ex:'book'},UW:{t:'v',F:[300,870,2240],d:170,ex:'boot'},
+ AH:{t:'v',F:[640,1190,2390],d:120,ex:'but'},ER:{t:'v',F:[490,1350,1690],d:170,ex:'bird'},AX:{t:'v',F:[500,1500,2500],d:70,ex:'about'},
+ EY:{t:'d',F:[530,1840,2480],F2:[300,2200,2900],d:200,ex:'bait'},AY:{t:'d',F:[730,1090,2440],F2:[300,2100,2800],d:220,ex:'bite'},OY:{t:'d',F:[570,840,2410],F2:[320,2050,2800],d:230,ex:'boy'},
+ AW:{t:'d',F:[730,1090,2440],F2:[320,900,2300],d:220,ex:'bout'},OW:{t:'d',F:[560,880,2400],F2:[320,850,2300],d:200,ex:'boat'},
+ W:{t:'g',F:[290,610,2150],d:70,ex:'wet'},Y:{t:'g',F:[260,2070,3020],d:70,ex:'yes'},R:{t:'g',F:[310,1060,1380],d:70,ex:'red'},L:{t:'g',F:[310,1050,2880],d:70,ex:'let'},
+ M:{t:'n',F:[270,1000,2200],d:80,ex:'man'},N:{t:'n',F:[270,1500,2600],d:80,ex:'net'},NG:{t:'n',F:[270,2000,2600],d:90,ex:'sing'},
+ S:{t:'f',fc:5500,fb:2500,fa:.6,d:110,ex:'sun'},SH:{t:'f',fc:2700,fb:1500,fa:.6,d:120,ex:'ship'},F:{t:'f',fc:6500,fb:5000,fa:.22,d:100,ex:'fan'},TH:{t:'f',fc:6000,fb:4500,fa:.16,d:100,ex:'thin'},
+ HH:{t:'h',d:70,ex:'hat'},
+ Z:{t:'f',fc:5000,fb:2500,fa:.4,vz:.45,F:[250,1600,2600],d:100,ex:'zoo'},ZH:{t:'f',fc:2600,fb:1500,fa:.4,vz:.45,F:[250,1700,2500],d:100,ex:'vision'},
+ V:{t:'f',fc:6000,fb:5000,fa:.15,vz:.5,F:[250,1100,2400],d:80,ex:'van'},DH:{t:'f',fc:5500,fb:4500,fa:.12,vz:.5,F:[250,1400,2500],d:60,ex:'this'},
+ P:{t:'p',bc:900,bb:2000,ba:.5,vb:0,F:[300,900,2300],d:90,ex:'pin'},T:{t:'p',bc:4500,bb:2500,ba:.6,vb:0,F:[300,1700,2600],d:90,ex:'tin'},K:{t:'p',bc:2000,bb:1500,ba:.6,vb:0,F:[300,1900,2500],d:100,ex:'kit'},
+ B:{t:'p',bc:900,bb:2000,ba:.4,vb:1,F:[250,900,2300],d:80,ex:'bin'},D:{t:'p',bc:4000,bb:2500,ba:.45,vb:1,F:[250,1700,2600],d:80,ex:'din'},G:{t:'p',bc:2000,bb:1500,ba:.45,vb:1,F:[250,1900,2500],d:85,ex:'go'},
+ CH:{t:'a',bc:2700,bb:1500,ba:.6,vb:0,F:[300,1800,2500],d:150,ex:'chin'},JH:{t:'a',bc:2600,bb:1500,ba:.45,vb:1,F:[250,1800,2500],d:140,ex:'jam'},
+ '.':{t:'s',d:60,ex:'short pause'},'/':{t:'s',d:150,ex:'word gap'}};
+const GROUPS=[['Vowels',['IY','IH','EH','AE','AA','AO','UH','UW','AH','ER','AX']],['Glides',['EY','AY','OY','AW','OW']],['Liquids',['W','Y','R','L']],['Nasals',['M','N','NG']],
+ ['Fricatives',['S','SH','F','TH','HH','Z','ZH','V','DH']],['Stops',['P','T','K','B','D','G','CH','JH']],['Pauses',['.','/']]];
+const VOICED=c=>{const t=PH[c]&&PH[c].t;return t==='v'||t==='d'||t==='g'||t==='n'};
+
+/* ===== voice parameters ===== */
+const SPEC={
+ clock:{l:'Master clock',min:.5,max:1.6,st:.01,f:v=>'×'+v.toFixed(2),g:'clock'},speed:{l:'Speed',min:.5,max:2,st:.01,f:v=>'×'+v.toFixed(2),g:'clock'},
+ glide:{l:'Formant glide',min:2,max:60,st:1,f:v=>v+' ms',g:'clock'},sustain:{l:'Hold last vowel',min:0,max:2,st:.05,f:v=>v.toFixed(2)+' s',g:'clock'},
+ pitch:{l:'Base pitch',min:50,max:320,st:1,f:v=>v+' Hz',g:'src'},step:{l:'Inflection step',min:0,max:7,st:.5,f:v=>v+' st',g:'src'},mode:{l:'Pitch',o:['Inflection','Monotone'],g:'src'},
+ buzz:{l:'Buzz',min:0,max:1,st:.01,f:v=>Math.round(v*100)+'%',g:'src'},oq:{l:'Open quotient',min:.15,max:.7,st:.01,f:v=>Math.round(v*100)+'%',g:'src'},
+ jitter:{l:'Jitter',min:0,max:1,st:.01,f:v=>Math.round(v*100)+'%',g:'src'},whisper:{l:'Whisper',min:0,max:1,st:.01,f:v=>Math.round(v*100)+'%',g:'src'},
+ shift:{l:'Tract size',min:.7,max:1.4,st:.01,f:v=>'×'+v.toFixed(2),g:'tract'},bw:{l:'Bandwidth',min:.5,max:2.5,st:.01,f:v=>'×'+v.toFixed(2),g:'tract'},
+ breath:{l:'Breath',min:0,max:.6,st:.01,f:v=>Math.round(v*100)+'%',g:'tract'},fric:{l:'Fricative level',min:0,max:1.6,st:.01,f:v=>'×'+v.toFixed(2),g:'tract'},
+ bits:{l:'DAC bits',min:3,max:16,st:1,f:v=>v+' bit',g:'out'},rate:{l:'Sample-and-hold rate',min:3000,max:44100,st:100,f:v=>(v/1000).toFixed(1)+' kHz',g:'out'},level:{l:'Level',min:0,max:1,st:.01,f:v=>Math.round(v*100)+'%',g:'out'}};
+const PANELS=[['U3','Clock + timing','clock'],['U4','Glottal source','src'],['U5','Vocal tract','tract'],['U6','Output','out']];
+const DEF={name:'Unit one',phrase:'HH1 AH1 L1 OW2 / AY2 / AE1 M1 / AX1 / S1 P1 IY2 CH1 / CH1 IH2 P1',clock:1,speed:1,glide:18,sustain:0,pitch:110,step:3,mode:0,buzz:.55,oq:.35,jitter:0,whisper:0,shift:1,bw:1.4,breath:.06,fric:1,bits:16,rate:44100,level:.85};
+const P=o=>Object.assign({},DEF,o);
+const PRESETS=[P({}),
+ P({name:'Slow clock',phrase:'S1 IH2 S1 T1 AX1 M1 / R1 EH2 D1 IY1',clock:.62}),
+ P({name:'Fast clock',phrase:'W1 AO2 R1 N1 IH1 NG1 . / P1 AW2 ER1 / L1 OW1',clock:1.45,pitch:140}),
+ P({name:'Cabinet speaker',phrase:'IH1 N1 S1 ER2 T1 / K1 OY2 N1',bits:6,rate:8000,bw:1.8}),
+ P({name:'Whisper unit',phrase:'G1 UH2 D1 / N1 AY2 T1',whisper:.9,breath:.3,pitch:90}),
+ P({name:'Count',phrase:'W1 AH2 N1 / T1 UW2 / TH1 R1 IY2 / F1 AO2 R1',step:4}),
+ P({name:'Singing vowel',phrase:'AA2',mode:1,sustain:1.4,glide:30,jitter:.25,buzz:.3,oq:.5,bw:1})];
+function sanitize(o){const p=Object.assign({},DEF);if(o&&typeof o==='object')for(const k in DEF){if(o[k]===undefined)continue;if(k==='name'||k==='phrase'){p[k]=String(o[k]).slice(0,600);continue}
+ const s=SPEC[k];let v=+o[k];if(!isFinite(v))continue;if(s.o)v=Math.max(0,Math.min(s.o.length-1,Math.round(v)));else v=Math.max(s.min,Math.min(s.max,v));p[k]=v}return p}
+
+/* ===== sequence ===== */
+function parse(str){const out=[];for(const raw of String(str).toUpperCase().split(/\s+/)){if(!raw)continue;const m=raw.match(/^([A-Z]{1,2}|\.|\/)([0-3])?$/);if(m&&PH[m[1]])out.push({c:m[1],i:m[2]===undefined?1:+m[2]})}return out}
+const unparse=seq=>seq.map(t=>t.c==='/'||t.c==='.'?t.c:t.c+t.i).join(' ');
+
+/* ===== synthesis ===== */
+function segments(seq,p,semi){const sr=OUT,seg=[],ms=v=>Math.max(1,Math.round(v/1000*sr*p.speed/p.clock));let last=[500,1500,2500];
+ const f0=i=>p.pitch*Math.pow(2,((p.mode===1?1:i)-1)*p.step/12)*Math.pow(2,semi/12)*p.clock;
+ let lastVoiced=-1;seq.forEach((t,ix)=>{if(VOICED(t.c))lastVoiced=ix});
+ seq.forEach((t,ix)=>{const s=PH[t.c],base={F:last,V:0,A:0,Fr:0,fc:4000,fb:2000,nas:0,f0:f0(t.i),ix};
+  const add=(dur,o)=>seg.push(Object.assign({},base,o,{n:ms(dur)}));const ext=ix===lastVoiced?p.sustain*1000:0;
+  switch(s.t){
+   case 'v':add(s.d+ext,{F:s.F,V:1});last=s.F;break;
+   case 'd':add(s.d*.45,{F:s.F,V:1});add(s.d*.55+ext,{F:s.F2,V:1});last=s.F2;break;
+   case 'g':add(s.d+ext,{F:s.F,V:.8});last=s.F;break;
+   case 'n':add(s.d+ext,{F:s.F,V:.55,nas:1});last=s.F;break;
+   case 'f':{const F=s.F||last;add(s.d,{F,V:s.vz||0,Fr:s.fa,fc:s.fc,fb:s.fb});break}
+   case 'h':{let nx=seq.slice(ix+1).find(u=>PH[u.c].F);add(s.d,{F:nx?PH[nx.c].F:last,A:.55});break}
+   case 'p':add(s.d*.6,{F:s.F,V:s.vb?.22:0});add(14,{F:s.F,V:s.vb?.3:0,Fr:s.ba,fc:s.bc,fb:s.bb});if(!s.vb)add(28,{F:s.F,A:.35});last=s.F;break;
+   case 'a':add(45,{F:s.F,V:s.vb?.22:0});add(s.d-45,{F:s.F,V:s.vb?.35:0,Fr:s.ba,fc:s.bc,fb:s.bb});last=s.F;break;
+   default:add(s.d,{})}});
+ seg.push({F:last,V:0,A:0,Fr:0,fc:4000,fb:2000,nas:0,f0:p.pitch,n:ms(120),ix:-1});return seg}
+function synth(seq,p,semi){const sr=OUT,seg=segments(seq,p,semi),N=seg.reduce((a,s)=>a+s.n,0),out=new Float32Array(N);
+ const kF=1-Math.exp(-1/(p.glide/1000*sr)),kA=1-Math.exp(-1/(.003*sr)),kP=1-Math.exp(-1/(.025*sr));
+ const sc=p.shift*p.clock,bwS=p.bw,ny=sr*.45;
+ let F=[...seg[0].F],V=0,A=0,Fr=0,fc=seg[0].fc,fb=seg[0].fb,nas=0,f0=seg[0].f0,ph=0,gp=0,jit=0;
+ const R=[0,0,0,0,0].map(()=>({a:0,b:0,c:0,y1:0,y2:0}));let svL=0,svB=0,dc=0,dcx=0;
+ const coef=(r,f,b)=>{f=Math.min(f,ny);const rr=Math.exp(-Math.PI*b/sr);r.c=-rr*rr;r.b=2*rr*Math.cos(2*Math.PI*f/sr);r.a=1-r.b-r.c};
+ const res=(r,x)=>{const y=r.a*x+r.b*r.y1+r.c*r.y2;r.y2=r.y1;r.y1=y;return y};
+ const frames=[],marks=[];let i=0,svf=0,svq=1;
+ for(const s of seg){if(s.ix>=0)marks.push({t:i,c:seq[s.ix].c});
+  for(let k=0;k<s.n;k++,i++){
+   for(let j=0;j<3;j++)F[j]+=(s.F[j]-F[j])*kF;
+   V+=(s.V-V)*kA;A+=(s.A-A)*kA;Fr+=(s.Fr-Fr)*kA;nas+=(s.nas-nas)*kF;fc+=(s.fc-fc)*kF;fb+=(s.fb-fb)*kF;f0+=(s.f0-f0)*kP;
+   if((i&15)===0){coef(R[0],F[0]*sc,(60+F[0]*.08)*bwS);coef(R[1],F[1]*sc,(90+F[1]*.04)*bwS);coef(R[2],F[2]*sc,(130+F[2]*.03)*bwS);coef(R[3],3500*sc,250*bwS);coef(R[4],270*sc,110);
+    const fcc=Math.min(fc*sc,sr/6.5);svf=2*Math.sin(Math.PI*fcc/sr);svq=Math.min(1.9,Math.max(.1,fb/fcc))}
+   ph+=f0*(1+jit)/sr;if(ph>=1){ph-=1;jit=p.jitter*.04*(Math.random()*2-1)}
+   const oq=p.oq,g=ph<oq?.5*(1-Math.cos(2*Math.PI*ph/oq)):0,dg=g-gp;gp=g;
+   const src=dg*6*(1-p.buzz)+(1-2*ph)*.35*p.buzz,nz=Math.random()*2-1;
+   const vAmt=V*(1-p.whisper),aAmt=A+V*p.whisper*.9+V*p.breath*.4;
+   let x=src*vAmt+nz*aAmt*.5;x=res(R[0],x);x=res(R[1],x);x=res(R[2],x);x=res(R[3],x);
+   if(nas>.01){const nn=res(R[4],x);x=x*(1-nas*.6)+nn*nas*.6}else R[4].y1*=.9;
+   const hp=nz*Fr*p.fric;svL+=svf*svB;const svH=hp-svL-svq*svB;svB+=svf*svH;
+   let y=x*.25+svB*.9;const yd=y-dcx+.995*dc;dcx=y;dc=yd;out[i]=yd;
+   if(i%220===0)frames.push([F[0]*sc,F[1]*sc,F[2]*sc,V+A*.5,Fr,Math.min(fc*sc,sr/2)])}}
+ // output stage: sample-and-hold, bits, normalize
+ let pk=0;for(let j=0;j<N;j++)pk=Math.max(pk,Math.abs(out[j]));const g=pk>0?.9*p.level/pk:0;
+ const hold=Math.max(1,sr/p.rate),q=Math.pow(2,p.bits-1);let h=0,acc=0;
+ for(let j=0;j<N;j++){if(++acc>=hold||j===0){acc-=hold;if(acc<0)acc=0;h=Math.round(out[j]*g*q)/q}out[j]=h}
+ return{buf:out,frames,marks,N}}
+
+/* ===== audio ===== */
+let AC=null,live=new Set(),play=null,patch,seq,last=null;
+try{patch=sanitize(JSON.parse(localStorage.getItem('speech-patch')))}catch(e){}if(!patch)patch=Object.assign({},PRESETS[0]);seq=parse(patch.phrase);
+function speak(semi=0,custom){if(!AC){try{AC=new (window.AudioContext||window.webkitAudioContext)()}catch(e){toast('Audio is unavailable in this browser');return}}if(AC.state==='suspended')AC.resume();
+ const s=custom||seq;if(!s.length){toast('Add some phonemes first');return}const r=synth(s,patch,semi);last=r;
+ const b=AC.createBuffer(1,r.N,OUT);b.getChannelData(0).set(r.buf);const src=AC.createBufferSource();src.buffer=b;src.connect(AC.destination);src.start();live.add(src);src.onended=()=>live.delete(src);
+ play={t0:AC.currentTime,dur:b.duration};}
+function stopAll(){live.forEach(s=>{try{s.stop()}catch(e){}});live.clear();play=null}
+
+/* ===== monitor ===== */
+const fm=$('#fm');
+function drawMon(){requestAnimationFrame(drawMon);const r=fm.getBoundingClientRect(),d=Math.min(devicePixelRatio||1,2);if(fm.width!==Math.round(r.width*d)){fm.width=Math.round(r.width*d);fm.height=Math.round(r.height*d)}
+ const x=fm.getContext('2d');x.setTransform(d,0,0,d,0,0);const w=r.width,h=r.height,L=46,B=18,top=6,FMAX=5000;x.clearRect(0,0,w,h);
+ x.font='10px "Azeret Mono",monospace';x.fillStyle='#93b39e';x.strokeStyle='#123a29';x.lineWidth=1;
+ for(const f of [1000,2000,3000,4000]){const y=top+(1-f/FMAX)*(h-B-top);x.beginPath();x.moveTo(L,y);x.lineTo(w,y);x.stroke();x.fillText(f/1000+'k',8,y+3)}
+ if(!last){x.fillText('Press Speak to see formant tracks.',L+8,h/2);return}
+ const fr=last.frames,n=fr.length,X=k=>L+k/(Math.max(1,n-1))*(w-L-6),Y=f=>top+(1-Math.min(f,FMAX)/FMAX)*(h-B-top);
+ for(let k=0;k<n;k++){const [f1,f2,f3,v,fz,fcz]=fr[k],xx=X(k);if(fz>.02){x.fillStyle=`rgba(255,209,102,${Math.min(.8,fz*1.2)})`;x.fillRect(xx-1,Y(fcz+600),2.2,Math.max(2,Y(fcz-600)-Y(fcz+600)))}
+  if(v>.03){x.fillStyle=`rgba(140,255,180,${Math.min(1,v)})`;for(const f of [f1,f2,f3])x.fillRect(xx-1,Y(f)-1.2,2.2,2.4)}}
+ x.fillStyle='#efe9d6';x.textBaseline='alphabetic';let lastX=-99;for(const m of last.marks){if(m.c==='/'||m.c==='.')continue;const xx=L+m.t/last.N*(w-L-6);if(xx-lastX<16)continue;x.fillText(m.c,xx,h-5);lastX=xx}
+ if(play&&AC){const pr=(AC.currentTime-play.t0)/play.dur;if(pr>=0&&pr<=1){const xx=L+pr*(w-L-6);x.strokeStyle='#ff5a3c';x.beginPath();x.moveTo(xx,top);x.lineTo(xx,h-B);x.stroke()}else play=null}}
+requestAnimationFrame(drawMon);
+function readout(){const nph=seq.filter(t=>t.c!=='/'&&t.c!=='.').length,dur=segments(seq,patch,0).reduce((a,s)=>a+s.n,0)/OUT;
+ $('#ro').innerHTML=`<span>Phonemes <b>${nph}</b></span><span>Length <b>${dur.toFixed(2)} s</b></span><span>Pitch <b>${Math.round(patch.pitch*patch.clock)} Hz</b> after clock</span><span>Formants <b>×${(patch.shift*patch.clock).toFixed(2)}</b></span>`}
+
+/* ===== phrase editing ===== */
+function drawStrip(){const S=$('#strip');S.innerHTML='';seq.forEach((t,ix)=>{const b=document.createElement('button');b.type='button';b.className='tok'+(t.c==='/'||t.c==='.'?' gap':'');
+  b.innerHTML=t.c+(t.c==='/'||t.c==='.'?'':`<i>${'●'.repeat(t.i)}${'○'.repeat(3-t.i)}</i>`);b.title=PH[t.c].ex;b.setAttribute('aria-label',`${t.c} as in ${PH[t.c].ex}, inflection ${t.i}`);
+  b.addEventListener('click',()=>{if(t.c==='/'||t.c==='.')return;t.i=(t.i+1)%4;commitSeq(false);speak(0,[{c:t.c,i:t.i}])});S.append(b)});
+ if(!seq.length){const p=document.createElement('span');p.className='note';p.textContent='Empty. Convert some text or tap phonemes below.';S.append(p)}
+ if(document.activeElement!==$('#codes'))$('#codes').value=unparse(seq);readout()}
+function commitSeq(redraw=true){patch.phrase=unparse(seq);save();drawStrip()}
+$('#codes').addEventListener('change',e=>{const s=parse(e.target.value);seq=s;commitSeq();if(!s.length&&e.target.value.trim())$('#status').textContent='None of those codes are in the phoneme set. Use the codes shown on the buttons below.'});
+$('#bk').addEventListener('click',()=>{seq.pop();commitSeq()});$('#clr').addEventListener('click',()=>{seq=[];commitSeq()});
+GROUPS.forEach(([g,list])=>{const row=document.createElement('div');row.innerHTML=`<span>${g}</span>`;list.forEach(c=>{const b=document.createElement('button');b.type='button';b.textContent=c;b.title=PH[c].ex;b.setAttribute('aria-label',`Add ${c}, as in ${PH[c].ex}`);
+  b.addEventListener('click',()=>{const t={c,i:1};seq.push(t);commitSeq();if(c!=='/'&&c!=='.')speak(0,PH[c].t==='p'||PH[c].t==='a'?[t,{c:'AX',i:1}]:[t])});row.append(b)});$('#pal').append(row)});
+
+/* ===== text to phonemes ===== */
+const DICT={hello:'HH AH L OW',world:'W ER L D',i:'AY',am:'AE M',a:'AX',the:'DH AX',is:'IH Z',are:'AA R',you:'Y UW',your:'Y AO R',we:'W IY',me:'M IY',my:'M AY',
+ one:'W AH N',two:'T UW',three:'TH R IY',four:'F AO R',five:'F AY V',six:'S IH K S',seven:'S EH V AX N',eight:'EY T',nine:'N AY N',ten:'T EH N',zero:'Z IY R OW',
+ system:'S IH S T AX M',ready:'R EH D IY',warning:'W AO R N IH NG',power:'P AW ER',low:'L OW',insert:'IH N S ER T',coin:'K OY N',speech:'S P IY CH',chip:'CH IH P',voice:'V OY S',
+ computer:'K AX M P Y UW T ER',robot:'R OW B AA T',human:'HH Y UW M AX N',danger:'D EY N JH ER',alert:'AX L ER T',game:'G EY M',over:'OW V ER',player:'P L EY ER',again:'AX G EH N',
+ go:'G OW',yes:'Y EH S',no:'N OW',stop:'S T AA P',start:'S T AA R T',welcome:'W EH L K AX M',goodbye:'G UH D B AY',good:'G UH D',night:'N AY T',thank:'TH AE NG K',thanks:'TH AE NG K S',please:'P L IY Z',
+ what:'W AH T',time:'T AY M',music:'M Y UW Z IH K',synthesizer:'S IH N TH AX S AY Z ER',data:'D EY T AX',error:'EH R ER',online:'AA N L AY N',level:'L EH V AX L',bonus:'B OW N AX S',energy:'EH N ER JH IY',
+ of:'AH V',to:'T UW',and:'AE N D',it:'IH T',this:'DH IH S',that:'DH AE T',for:'F AO R',not:'N AA T',be:'B IY',have:'HH AE V',do:'D UW',can:'K AE N',will:'W IH L',all:'AO L',now:'N AW',new:'N UW',
+ they:'DH EY',there:'DH EH R',then:'DH EH N',with:'W IH DH',one:'W AH N',come:'K AH M',some:'S AH M',love:'L AH V',done:'D AH N',was:'W AA Z',were:'W ER',said:'S EH D',says:'S EH Z',
+ hi:'HH AY',how:'HH AW',who:'HH UW',where:'W EH R',why:'W AY',eye:'AY',friend:'F R EH N D',people:'P IY P AX L',machine:'M AX SH IY N',sound:'S AW N D',chip:'CH IH P'};
+const RULES=[['tch','CH'],['igh','AY'],['sh','SH'],['ch','CH'],['th','TH'],['ph','F'],['wh','W'],['ng','NG'],['ck','K'],['qu','K W'],['ee','IY'],['ea','IY'],['oo','UW'],['ou','AW'],['ow','OW'],
+ ['oi','OY'],['oy','OY'],['ai','EY'],['ay','EY'],['oa','OW'],['au','AO'],['aw','AO'],['er','ER'],['ir','ER'],['ur','ER'],['ar','AA R'],['or','AO R'],['ce','S'],['ci','S IH'],['cy','S IY'],
+ ['A','EY'],['E','IY'],['I','AY'],['O','OW'],['U','Y UW'],['a','AE'],['e','EH'],['i','IH'],['o','AA'],['u','AH'],['b','B'],['c','K'],['d','D'],['f','F'],['g','G'],['h','HH'],['j','JH'],['k','K'],
+ ['l','L'],['m','M'],['n','N'],['p','P'],['q','K'],['r','R'],['s','S'],['t','T'],['v','V'],['w','W'],['x','K S'],['z','Z']];
+function g2p(word){if(DICT[word])return DICT[word].split(' ');let w=word;
+ const m=w.match(/^(.*?)([aeiou])([^aeiouwy])e$/);if(m&&w.length>3&&!/[aeiou]$/.test(m[1]))w=m[1]+m[2].toUpperCase()+m[3];else if(/[^aeiou]e$/.test(w)&&w.length>3)w=w.slice(0,-1);
+ const out=[];let i=0;while(i<w.length){const ch=w[i];if(ch==='y'){out.push(i===0?'Y':i===w.length-1?(w.length<=3?'AY':'IY'):'IH');i++;continue}
+  if(i>0&&w[i-1]===ch&&!/[aeiouAEIOU]/.test(ch)){i++;continue}let hit=false;for(const [g,p] of RULES){if(w.startsWith(g,i)){out.push(...p.split(' '));i+=g.length;hit=true;break}}if(!hit)i++}
+ if(out[out.length-1]==='S'&&out.length>1&&(VOICED(out[out.length-2])||['B','D','G','V','Z','M','N'].includes(out[out.length-2]))&&w.endsWith('s'))out[out.length-1]='Z';return out}
+function textToSeq(text){const words=text.toLowerCase().match(/[a-z']+|[.,!?;:]/g)||[];const out=[];let q=/\?\s*$/.test(text);
+ words.forEach((wd,wi)=>{if(/^[.,!?;:]$/.test(wd)){out.push({c:'.',i:1});return}if(out.length&&out[out.length-1].c!=='.')out.push({c:'/',i:1});
+  const ph=g2p(wd.replace(/'/g,''));let stressed=false;const lastWord=wi===words.length-1||(/[.,!?;:]/.test(words[wi+1]||'')&&wi===words.length-2);
+  ph.forEach(c=>{if(!PH[c])return;let inf=1;if(VOICED(c)&&PH[c].t!=='g'&&PH[c].t!=='n'&&!stressed){inf=2;stressed=true}if(q&&lastWord&&VOICED(c))inf=3;out.push({c,i:inf})})});
+ return out}
+let SAMPLE=null;(async()=>{try{SAMPLE=window.claude&&window.claude.use?await window.claude.use('sample'):null}catch(e){SAMPLE=null}})();
+$('#txtF').addEventListener('submit',async e=>{e.preventDefault();const text=$('#txt').value.trim();if(!text){$('#status').textContent='Type some words to convert.';return}
+ if(SAMPLE){$('#status').textContent='Asking Claude for a phonetic spelling…';
+  try{const codes=Object.keys(PH).filter(c=>c!=='/'&&c!=='.').map(c=>`${c} (${PH[c].ex})`).join(', ');
+   const r=await SAMPLE.json(`Transcribe English text into phonemes for a formant speech synthesizer. Use only these codes: ${codes}. Use "/" between words and "." for a pause at punctuation. Give each phoneme an inflection 0-3 for pitch: 1 is neutral, 2 for stressed syllables, 3 for emphasis or a rising question, 0 for a falling end. Reply with JSON only: {"tokens":["HH1","AH2","L1","OW1","/","W1","ER2","L1","D0"]}.\n\nText: "${text.slice(0,160)}"`,{modelTier:'quick'});
+   const s=parse((r&&Array.isArray(r.tokens)?r.tokens:[]).join(' '));if(s.length){seq=s;commitSeq();$('#status').textContent='Converted by Claude. Tap phonemes to adjust.';speak();return}}
+  catch(err){if(err&&(err.code==='not_granted'||err.code==='unavailable'))SAMPLE=null}}
+ seq=textToSeq(text);commitSeq();$('#status').textContent='Converted with built-in spelling rules. Unusual words may need hand edits.';speak()});
+
+/* ===== controls ===== */
+const binds=[];
+PANELS.forEach(([u,t,g])=>{const ch=document.createElement('div');ch.className='chip';ch.innerHTML=`<h2><div><span>${u}</span>${t}</div></h2>`;
+ for(const k in SPEC){const s=SPEC[k];if(s.g!==g)continue;const row=document.createElement('div');row.className='ctl';const id='c-'+k;
+  if(s.o){row.innerHTML=`<span class="lbl" id="${id}">${s.l}</span><output></output><div class="seg" role="group" aria-labelledby="${id}"></div>`;const seg=row.querySelector('.seg');
+   s.o.forEach((v,i)=>{const b=document.createElement('button');b.type='button';b.textContent=v;b.addEventListener('click',()=>{patch[k]=i;changed()});seg.append(b)});
+   binds.push(()=>[...seg.children].forEach((b,i)=>b.setAttribute('aria-pressed',String(i===patch[k]))))}
+  else{row.innerHTML=`<label for="${id}">${s.l}</label><output></output><input type="range" id="${id}" min="${s.min}" max="${s.max}" step="${s.st}">`;const r=row.querySelector('input'),o=row.querySelector('output');
+   r.addEventListener('input',()=>{patch[k]=+r.value;o.textContent=s.f(patch[k]);readout();markCustom();save()});r.addEventListener('change',()=>speak());
+   binds.push(()=>{r.value=patch[k];o.textContent=s.f(patch[k])})}
+  ch.append(row)}
+ $('#board').append(ch)});
+function save(){try{localStorage.setItem('speech-patch',JSON.stringify(patch))}catch(e){}}
+function changed(){binds.forEach(f=>f());readout();markCustom();save()}
+const ps=$('#preset');PRESETS.forEach((p,i)=>{const o=document.createElement('option');o.value=i;o.textContent=p.name;ps.append(o)});
+function markCustom(){const i=PRESETS.findIndex(p=>Object.keys(DEF).every(k=>p[k]===patch[k]));if(i>=0){ps.value=i;return}
+ if(!$('#custom')){const o=document.createElement('option');o.value='';o.id='custom';o.textContent='Your patch';ps.prepend(o)}ps.value=''}
+ps.addEventListener('change',()=>{if(ps.value==='')return;patch=Object.assign({},PRESETS[+ps.value]);seq=parse(patch.phrase);changed();drawStrip();speak()});
+$('#rand').addEventListener('click',()=>{const r=(a,b,st)=>Math.round((a+Math.random()*(b-a))/st)*st;
+ Object.assign(patch,{name:'Random '+Math.floor(Math.random()*256).toString(16).toUpperCase().padStart(2,'0'),clock:r(.6,1.5,.01),speed:r(.7,1.5,.01),glide:r(6,40,1),pitch:r(70,220,1),step:r(1,6,.5),
+  mode:Math.random()<.8?0:1,buzz:r(.1,.9,.01),oq:r(.2,.6,.01),jitter:Math.random()<.6?0:r(0,.6,.01),whisper:Math.random()<.85?0:r(.5,1,.01),shift:r(.8,1.25,.01),bw:r(.8,2.2,.01),breath:r(0,.3,.01),
+  fric:r(.6,1.4,.01),bits:Math.random()<.6?16:r(4,10,1),rate:Math.random()<.6?44100:r(5000,16000,100)});changed();speak()});
+$('#speak').addEventListener('click',()=>{stopAll();speak()});$('#stop').addEventListener('click',stopAll);
+
+/* ===== keybed ===== */
+const kb=$('#kb'),BLK=[1,3,6,8,10],keyEls={},whites=[];
+for(let n=-12;n<=12;n++){const pc=((n%12)+12)%12;if(!BLK.includes(pc)){const k=document.createElement('div');k.className='w';k.dataset.n=n;if(pc===0)k.textContent=n===0?'0':(n>0?'+':'')+n;kb.append(k);keyEls[n]=k;whites.push(n)}}
+for(let n=-12;n<=12;n++){const pc=((n%12)+12)%12;if(BLK.includes(pc)){const k=document.createElement('div');k.className='b';k.dataset.n=n;const l=whites.indexOf(n-1)+1;k.style.left=`calc(${l/whites.length*100}% - ${100/whites.length*.3}%)`;k.style.width=`${100/whites.length*.6}%`;kb.append(k);keyEls[n]=k}}
+const flash=n=>{const k=keyEls[n];if(!k)return;k.classList.add('on');setTimeout(()=>k.classList.remove('on'),160)};
+kb.addEventListener('pointerdown',e=>{const k=e.target.closest('[data-n]');if(!k)return;e.preventDefault();const n=+k.dataset.n;speak(n);flash(n)});
+const KM={KeyZ:-12,KeyS:-11,KeyX:-10,KeyD:-9,KeyC:-8,KeyV:-7,KeyG:-6,KeyB:-5,KeyH:-4,KeyN:-3,KeyJ:-2,KeyM:-1,KeyQ:0,Digit2:1,KeyW:2,Digit3:3,KeyE:4,KeyR:5,Digit5:6,KeyT:7,Digit6:8,KeyY:9,Digit7:10,KeyU:11,KeyI:12};
+addEventListener('keydown',e=>{if(e.repeat||e.metaKey||e.ctrlKey||e.altKey)return;const tg=e.target.tagName;if(tg==='INPUT'&&e.target.type==='text'||tg==='TEXTAREA'||tg==='SELECT')return;
+ if(e.code==='Space'&&tg!=='BUTTON'){e.preventDefault();stopAll();speak();return}if(KM[e.code]!==undefined){speak(KM[e.code]);flash(KM[e.code])}});
+
+/* ===== export ===== */
+function toast(t){const el=$('#toast');el.textContent=t;el.hidden=false;clearTimeout(toast.t);toast.t=setTimeout(()=>el.hidden=true,2600)}
+function wav16(f,rate){const n=f.length,buf=new ArrayBuffer(44+n*2),d=new DataView(buf),w=(o,s)=>{for(let i=0;i<4;i++)d.setUint8(o+i,s.charCodeAt(i))};
+ w(0,'RIFF');d.setUint32(4,36+n*2,true);w(8,'WAVE');w(12,'fmt ');d.setUint32(16,16,true);d.setUint16(20,1,true);d.setUint16(22,1,true);d.setUint32(24,rate,true);d.setUint32(28,rate*2,true);d.setUint16(32,2,true);d.setUint16(34,16,true);w(36,'data');d.setUint32(40,n*2,true);
+ for(let i=0;i<n;i++)d.setInt16(44+2*i,Math.max(-32768,Math.min(32767,Math.round(f[i]*32767))),true);return new Uint8Array(buf)}
+const CRC=(()=>{const t=new Uint32Array(256);for(let n=0;n<256;n++){let c=n;for(let k=0;k<8;k++)c=c&1?0xEDB88320^(c>>>1):c>>>1;t[n]=c}return u=>{let c=~0;for(let i=0;i<u.length;i++)c=t[(c^u[i])&255]^(c>>>8);return(~c)>>>0}})();
+function zip(files){const parts=[],cen=[];let off=0;const te=new TextEncoder();for(const f of files){const nm=te.encode(f.name),crc=CRC(f.data),sz=f.data.length;
+ const h=new DataView(new ArrayBuffer(30));h.setUint32(0,0x04034b50,true);h.setUint16(4,20,true);h.setUint16(12,0x21,true);h.setUint32(14,crc,true);h.setUint32(18,sz,true);h.setUint32(22,sz,true);h.setUint16(26,nm.length,true);parts.push(new Uint8Array(h.buffer),nm,f.data);
+ const c=new DataView(new ArrayBuffer(46));c.setUint32(0,0x02014b50,true);c.setUint16(4,20,true);c.setUint16(6,20,true);c.setUint16(14,0x21,true);c.setUint32(16,crc,true);c.setUint32(20,sz,true);c.setUint32(24,sz,true);c.setUint16(28,nm.length,true);c.setUint32(42,off,true);cen.push(new Uint8Array(c.buffer),nm);off+=30+nm.length+sz}
+ const cs=cen.reduce((a,b)=>a+b.length,0),e=new DataView(new ArrayBuffer(22));e.setUint32(0,0x06054b50,true);e.setUint16(8,files.length,true);e.setUint16(10,files.length,true);e.setUint32(12,cs,true);e.setUint32(16,off,true);return new Blob([...parts,...cen,new Uint8Array(e.buffer)])}
+let DL=null;(async()=>{try{DL=window.claude&&window.claude.use?await window.claude.use('downloads'):null}catch(e){DL=null}if(DL)$('#exp').hidden=false})();
+$('#exp').addEventListener('click',async()=>{if(!seq.length){toast('Add some phonemes first');return}const r=synth(seq,patch,0),s=(patch.name||'voice').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'')||'voice';
+ try{await DL.save({filename:s+'.zip',data:zip([{name:s+'_44k_16bit.wav',data:wav16(r.buf,OUT)},{name:s+'.json',data:new TextEncoder().encode(JSON.stringify(patch,null,1))}])});toast('Saved '+s+'.zip')}
+ catch(e){const c=e&&e.code;if(c==='declined')return;if(c==='rate_limited')toast('A save prompt is already open');else{toast('Saving is unavailable here. Copy the patch instead.');$('#exp').hidden=true}}});
+$('#copy').addEventListener('click',()=>{const t=JSON.stringify(patch,null,1);try{navigator.clipboard.writeText(t).then(()=>toast('Patch copied'),()=>toast('Copy was blocked here'))}catch(e){toast('Copy was blocked here')}});
+
+changed();drawStrip();
+})();
+</script>
+</body>
+</html>

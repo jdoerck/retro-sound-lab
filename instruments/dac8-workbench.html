@@ -1,0 +1,347 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>DAC-8 Workbench</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Azeret+Mono:wght@400;500;700&family=Saira+Stencil+One&display=swap">
+<style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;font:14px/1.4 system-ui,-apple-system,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style>
+</head>
+<body>
+<script>/* Local shim: inside claude.ai artifacts window.claude.use() provides capabilities.
+Outside it, give the page a 'downloads' capability that saves via a normal link; 'sample' (Claude calls) stays unavailable,
+so pages fall back to their built-in rules. */
+if(!window.claude){window.claude={use:async n=>n==='downloads'?{save:async({filename,data})=>{const b=data instanceof Blob?data:new Blob([data]);const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=filename;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),4000);return{status:'saved'}}}:null}}</script>
+<style>
+/* Layout: a sound board laid flat — scope and keybed on top, then each "chip" (generator) as a silkscreened block in a wrapping grid */
+:root{
+  --mask:#0a2218; --mask2:#0e2d20; --trace:#1d4b36; --silk:#efe9d6; --silkdim:#93b39e;
+  --pad:#d9b45a; --led:#ff5a3c; --phos:#8cffb4;
+  --display:"Saira Stencil One","Arial Black",system-ui,sans-serif;
+  --mono:"Azeret Mono",ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  color-scheme:dark;
+}
+html,body{min-height:100%}
+body{background:var(--mask);color:var(--silk);font:13px/1.5 var(--mono);
+  background-image:repeating-linear-gradient(90deg,transparent 0 63px,rgba(29,75,54,.35) 63px 64px),repeating-linear-gradient(0deg,transparent 0 63px,rgba(29,75,54,.25) 63px 64px)}
+.wrap{max-width:1180px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:20px 40px;display:grid;gap:18px}
+header{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:12px 24px}
+h1{margin:0;font:400 clamp(30px,6vw,48px)/1 var(--display);letter-spacing:.02em;color:var(--silk)}
+h1 small{display:block;font:500 10px/1.6 var(--mono);letter-spacing:.18em;color:var(--silkdim);text-transform:uppercase;margin-top:6px}
+.bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+select,input[type=text],button{font:500 12px var(--mono);color:var(--silk);background:var(--mask2);border:1px solid var(--trace);border-radius:2px;padding:8px 10px}
+button{cursor:pointer}
+button:hover{border-color:var(--silkdim)}
+button.hot{background:var(--pad);color:var(--mask);border-color:var(--pad);font-weight:700}
+button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid var(--phos);outline-offset:2px}
+#name{width:14ch}
+.scope{border:1px solid var(--trace);background:#04130c;display:grid;gap:0;position:relative}
+.scope canvas{display:block;width:100%}
+#ov{height:120px;cursor:crosshair}
+#zm{height:90px;border-top:1px dashed var(--trace)}
+.readout{display:flex;flex-wrap:wrap;gap:4px 18px;padding:8px 12px;border-top:1px solid var(--trace);font-size:11px;color:var(--silkdim);font-variant-numeric:tabular-nums}
+.readout b{color:var(--phos);font-weight:500}
+.keys{overflow-x:auto;padding-bottom:4px}
+.kb{position:relative;display:flex;height:110px;min-width:520px;user-select:none;-webkit-user-select:none;touch-action:none}
+.kb .w{flex:1;background:var(--silk);border:1px solid var(--mask);border-radius:0 0 3px 3px;position:relative;color:var(--mask);font-size:9px;display:flex;align-items:flex-end;justify-content:center;padding-bottom:6px}
+.kb .b{position:absolute;top:0;height:64%;background:#061a11;border:1px solid var(--trace);border-radius:0 0 3px 3px;z-index:1}
+.kb .on{background:var(--pad)!important}
+.hint{font-size:11px;color:var(--silkdim);margin:6px 0 0}
+.board{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:14px;align-items:start}
+.chip{border:1px solid var(--silkdim);border-radius:2px;padding:12px 14px 14px;position:relative;background:rgba(14,45,32,.7);display:grid;gap:10px;min-width:0}
+.chip::before{content:"";position:absolute;top:-1px;left:50%;width:22px;height:9px;margin-left:-11px;border:1px solid var(--silkdim);border-top:0;border-radius:0 0 11px 11px;background:var(--mask)}
+.chip h2{margin:0;display:flex;align-items:center;justify-content:space-between;gap:8px;font:700 11px var(--mono);letter-spacing:.14em;text-transform:uppercase}
+.chip h2 span{color:var(--pad);margin-right:8px}
+.chip.off .ctl{opacity:.4}
+.ctl{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 10px;align-items:center}
+.ctl label{font-size:11px;color:var(--silkdim)}
+.ctl output{font-size:11px;color:var(--silk);font-variant-numeric:tabular-nums;text-align:right}
+.ctl input[type=range],.ctl select{grid-column:1/-1;width:100%}
+input[type=range]{-webkit-appearance:none;appearance:none;height:22px;background:transparent;margin:0}
+input[type=range]::-webkit-slider-runnable-track{height:2px;background:var(--trace)}
+input[type=range]::-moz-range-track{height:2px;background:var(--trace)}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;margin-top:-6px;border-radius:50%;background:var(--pad);border:2px solid var(--mask);box-shadow:0 0 0 1px var(--pad)}
+input[type=range]::-moz-range-thumb{width:12px;height:12px;border-radius:50%;background:var(--pad);border:2px solid var(--mask)}
+.sw{appearance:none;-webkit-appearance:none;width:34px;height:18px;border-radius:9px;background:var(--trace);position:relative;cursor:pointer;flex:none;margin:0}
+.sw::after{content:"";position:absolute;top:2px;left:2px;width:14px;height:14px;border-radius:50%;background:var(--silkdim);transition:left .12s}
+.sw:checked{background:var(--led)}.sw:checked::after{left:18px;background:var(--silk)}
+#tbl{width:100%;height:90px;display:block;background:#04130c;border:1px solid var(--trace);touch-action:none;cursor:crosshair}
+.shapes{display:flex;flex-wrap:wrap;gap:6px}
+.shapes button{padding:5px 8px;font-size:10px}
+details{border:1px solid var(--trace);padding:10px 12px}
+summary{cursor:pointer;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--silkdim)}
+textarea{width:100%;min-height:160px;margin-top:10px;background:#04130c;color:var(--phos);border:1px solid var(--trace);font:11px/1.5 var(--mono);box-sizing:border-box}
+#toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--silk);color:var(--mask);padding:8px 14px;font-size:12px;border-radius:2px;z-index:5}
+.note{font-size:11px;color:var(--silkdim);max-width:70ch;margin:0}
+@media (prefers-reduced-motion:reduce){.sw::after{transition:none}}
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>DAC-8 Workbench<small>CPU-driven 8-bit DAC synthesis · after the 1980–81 Williams sound board</small></h1>
+    <div class="bar">
+      <select id="preset" aria-label="Preset"></select>
+      <input id="name" type="text" aria-label="Patch name" maxlength="40">
+      <button id="rand" type="button">Randomize</button>
+      <button id="play" class="hot" type="button">Play</button>
+      <button id="stop" type="button">Stop</button>
+    </div>
+  </header>
+
+  <section class="scope" aria-label="Rendered waveform">
+    <canvas id="ov"></canvas>
+    <canvas id="zm"></canvas>
+    <div class="readout" id="ro"></div>
+  </section>
+
+  <section>
+    <div class="keys"><div class="kb" id="kb"></div></div>
+    <p class="hint">Keys Z–M and Q–U play two octaves (C4 is the patch as set). Space plays the patch. Tap the overview to move the zoom window.</p>
+  </section>
+
+  <section class="board" id="board"></section>
+
+  <section class="bar" id="io">
+    <button id="exp" type="button" hidden>Export audio (.zip)</button>
+    <button id="savep" type="button" hidden>Save patch (.json)</button>
+    <label class="bar" style="gap:6px"><button id="loadb" type="button">Load patch</button><input id="loadf" type="file" accept=".json,application/json" hidden></label>
+    <button id="copy" type="button">Copy patch</button>
+  </section>
+  <p class="note">Export gives a zip with two WAVs: the raw 8-bit stream at the DAC rate, and a 44.1 kHz 16-bit version through the output filter, ready for a sampler.</p>
+  <details><summary>Patch JSON</summary><textarea id="json" readonly aria-label="Patch JSON"></textarea></details>
+</div>
+<div id="toast" hidden></div>
+
+<script>
+(()=>{
+const $=s=>document.querySelector(s);
+const OUT=44100;
+/* ---------- wavetables (32 steps, 0–255) ---------- */
+const SH={
+ sine:()=>Array.from({length:32},(_,i)=>Math.round(128+127*Math.sin(i/32*2*Math.PI))),
+ tri:()=>Array.from({length:32},(_,i)=>Math.round(i<16?i*255/15:(31-i)*255/15)),
+ saw:()=>Array.from({length:32},(_,i)=>Math.round(i*255/31)),
+ square:()=>Array.from({length:32},(_,i)=>i<16?255:0),
+ stairs:()=>Array.from({length:32},(_,i)=>[0,85,170,255,170,85,0,0][i>>2]),
+ organ:()=>Array.from({length:32},(_,i)=>{const a=i/32*2*Math.PI;return Math.round(128+127*(Math.sin(a)*.6+Math.sin(2*a)*.25+Math.sin(4*a)*.15))}),
+ scatter:()=>Array.from({length:32},()=>Math.floor(Math.random()*256))
+};
+/* ---------- patch model ---------- */
+const DEF={name:'Init',rate:11025,bits:8,smooth:9000,length:1,gain:.9,
+ tone:{on:1,level:.8,freq:440,sweep:0,mode:'one',span:100,warble:0,table:SH.saw()},
+ pulse:{on:0,level:.5,freq:220,duty:.5,sweep:0,mode:'one',span:50},
+ noise:{on:0,level:.5,clock:4000,glide:0,taps:15},
+ env:{a:0,h:100,d:500,steps:16},
+ rep:{n:1,gap:120,fade:.7,semi:0}};
+const clone=o=>JSON.parse(JSON.stringify(o));
+function fill(src){const p=clone(DEF);if(!src||typeof src!=='object')return p;
+ for(const k in DEF){if(typeof DEF[k]==='object'&&!Array.isArray(DEF[k])){if(src[k]&&typeof src[k]==='object')for(const j in DEF[k]){if(src[k][j]!==undefined&&typeof src[k][j]===typeof DEF[k][j])p[k][j]=src[k][j]}}
+  else if(src[k]!==undefined&&typeof src[k]===typeof DEF[k])p[k]=src[k]}
+ if(src.tone&&src.tone.shape&&SH[src.tone.shape])p.tone.table=SH[src.tone.shape]();
+ if(!Array.isArray(p.tone.table)||p.tone.table.length!==32)p.tone.table=SH.saw();
+ p.tone.table=p.tone.table.map(v=>Math.max(0,Math.min(255,Math.round(+v||0))));return p}
+const PRESETS=[
+ {name:'Zap Down',rate:11025,length:.45,tone:{on:1,level:.9,freq:2200,sweep:.9,mode:'one',span:300,shape:'saw'},env:{a:0,h:20,d:380,steps:16}},
+ {name:'Warble Siren',rate:8000,length:2,tone:{on:1,level:.9,freq:520,sweep:-.25,mode:'bounce',span:6,shape:'tri'},env:{a:20,h:1500,d:400,steps:0}},
+ {name:'Debris Cloud',rate:9000,smooth:5000,length:1.4,tone:{on:0},noise:{on:1,level:1,clock:7000,glide:-2.5,taps:15},env:{a:0,h:60,d:1200,steps:12}},
+ {name:'Hyperjump',rate:11025,length:1.3,tone:{on:1,level:.9,freq:120,sweep:-.6,mode:'one',span:88,shape:'square'},env:{a:10,h:900,d:300,steps:16}},
+ {name:'Coin Chime',rate:11025,length:.9,tone:{on:1,level:.9,freq:880,sweep:0,shape:'sine'},env:{a:2,h:40,d:220,steps:8},rep:{n:4,gap:90,fade:.8,semi:5}},
+ {name:'Rumble Engine',rate:6000,smooth:2500,length:2,tone:{on:0},pulse:{on:1,level:.6,freq:55,duty:.3,sweep:.02,mode:'bounce',span:4},noise:{on:1,level:.4,clock:600,glide:0,taps:7},env:{a:80,h:1500,d:300,steps:0}},
+ {name:'Alarm Pulse',rate:11025,length:1,tone:{on:0},pulse:{on:1,level:.8,freq:740,duty:.25,sweep:0},env:{a:0,h:70,d:30,steps:0},rep:{n:6,gap:160,fade:1,semi:0}},
+ {name:'Orbit Scream',rate:11025,length:1.6,tone:{on:1,level:.9,freq:1400,sweep:.25,mode:'loop',span:40,warble:3,shape:'organ'},env:{a:30,h:900,d:600,steps:16}},
+ {name:'Crushed Bass',rate:4000,bits:3,smooth:3000,length:.9,tone:{on:1,level:1,freq:65,sweep:0,shape:'saw'},env:{a:5,h:300,d:400,steps:0}}
+].map(fill);
+
+let patch;try{patch=fill(JSON.parse(localStorage.getItem('dac8-patch')))}catch(e){patch=null}
+if(!patch||patch.name==='Init')patch=clone(PRESETS[0]);
+
+/* ---------- engine ---------- */
+function voice(p,acc,start,N,g,mul){
+ const R=p.rate,ms=v=>Math.round(v/1000*R);
+ const A=ms(p.env.a),Hd=ms(p.env.h),D=ms(p.env.d),T=A+Hd+D;
+ const len=Math.min(N-start,T>0?T:N-start);
+ const st=p.env.steps;
+ const t=p.tone,pl=p.pulse,nz=p.noise;
+ // tone state
+ const tP0=R/(t.freq*mul);let tPer=tP0,tCur=Math.max(2,Math.round(tP0)),tPos=0,tDir=1,tWob=1,tDone=false;
+ const tMin=Math.max(2,tP0-t.span),tMax=tP0+t.span;
+ const pP0=R/(pl.freq*mul);let pPer=pP0,pCur=Math.max(2,Math.round(pP0)),pPos=0,pDir=1,pDone=false;
+ const pMin=Math.max(2,pP0-pl.span),pMax=pP0+pl.span;
+ let lf=0x5a5a&((1<<nz.taps)-1)||1,nb=1,nacc=0;const nw=nz.taps;
+ const sweepStep=(per,dir,sw,mode,mn,mx,p0,done)=>{if(done)return[per,dir,done];per+=sw*dir;
+  if(per<mn||per>mx){if(mode==='loop')per=p0;else if(mode==='bounce'){dir=-dir;per=Math.max(mn,Math.min(mx,per))}else{per=Math.max(mn,Math.min(mx,per));done=true}}return[per,dir,done]};
+ for(let i=0;i<len;i++){
+  let e=i<A?i/A:i<A+Hd?1:D>0?Math.max(0,1-(i-A-Hd)/D):0;if(T===0)e=1;
+  if(st>0)e=Math.round(e*st)/st;
+  let s=0;
+  if(t.on){if(++tPos>=tCur){tPos-=tCur;[tPer,tDir,tDone]=sweepStep(tPer,tDir,t.sweep,t.mode,tMin,tMax,tP0,tDone);tWob=-tWob;tCur=Math.max(2,Math.round(tPer+tWob*t.warble))}
+   s+=(t.table[Math.floor(tPos/tCur*32)&31]-128)/128*t.level}
+  if(pl.on){if(++pPos>=pCur){pPos-=pCur;[pPer,pDir,pDone]=sweepStep(pPer,pDir,pl.sweep,pl.mode,pMin,pMax,pP0,pDone);pCur=Math.max(2,Math.round(pPer))}
+   s+=(pPos<pl.duty*pCur?1:-1)*pl.level}
+  if(nz.on){nacc+=nz.clock*mul*Math.pow(2,nz.glide*i/R)/R;
+   while(nacc>=1){nacc-=1;const b=(lf^(lf>>1))&1;lf=(lf>>1)|(b<<(nw-1));nb=lf&1}
+   s+=(nb?1:-1)*nz.level}
+  acc[start+i]+=s*e*g}
+}
+function render(p,semi){const R=p.rate,N=Math.max(1,Math.round(p.length*R)),acc=new Float32Array(N),mul=Math.pow(2,semi/12);
+ for(let r=0;r<p.rep.n;r++){const s0=Math.round(r*p.rep.gap/1000*R);if(s0>=N)break;voice(p,acc,s0,N,Math.pow(p.rep.fade,r),mul*Math.pow(2,r*p.rep.semi/12))}
+ const q=new Int16Array(N),step=Math.pow(2,8-p.bits);
+ for(let i=0;i<N;i++){let v=Math.round(acc[i]*p.gain*127);v=v<-128?-128:v>127?127:v;q[i]=Math.floor((v+128)/step)*step-128}
+ return q}
+function upsample(q,R,cut){const M=Math.ceil(q.length*OUT/R),o=new Float32Array(M),k=1-Math.exp(-2*Math.PI*Math.min(cut,OUT/2.2)/OUT);let y=0;
+ for(let j=0;j<M;j++){const x=q[Math.min(q.length-1,Math.floor(j*R/OUT))]/128;y+=k*(x-y);o[j]=y}return o}
+
+/* ---------- audio ---------- */
+let AC=null;const live=new Set();
+function ac(){if(!AC){try{AC=new (window.AudioContext||window.webkitAudioContext)()}catch(e){toast('Audio is unavailable in this browser');return null}}if(AC.state==='suspended')AC.resume();return AC}
+function trigger(semi){const c=ac();if(!c)return;const q=render(patch,semi),f=upsample(q,patch.rate,patch.smooth);
+ const b=c.createBuffer(1,f.length,OUT);b.getChannelData(0).set(f);const s=c.createBufferSource();s.buffer=b;const g=c.createGain();g.gain.value=.7;s.connect(g).connect(c.destination);s.start();live.add(s);s.onended=()=>live.delete(s)}
+function stopAll(){live.forEach(s=>{try{s.stop()}catch(e){}});live.clear()}
+
+/* ---------- control panel ---------- */
+const PANELS=[
+ {id:'clock',u:'U1',t:'Clock + DAC',ps:[['rate','DAC update rate',2000,24000,50,'Hz'],['bits','DAC bits',1,8,1,'bit'],['smooth','Output filter',300,20000,0,'Hz','log'],['length','Length',.05,4,.05,'s'],['gain','Master',0,1.5,.01,'']]},
+ {id:'tone',u:'U3',t:'Wavetable',tog:'tone.on',ps:[['tone.level','Level',0,1,.01,''],['tone.freq','Start pitch',20,5000,0,'Hz','log'],['tone.sweep','Period sweep',-2,2,.01,'ticks/cycle'],['tone.mode','Sweep end',['one','loop','bounce']],['tone.span','Sweep range',1,400,1,'ticks'],['tone.warble','Warble',0,20,.5,'ticks']],table:true},
+ {id:'pulse',u:'U4',t:'Pulse',tog:'pulse.on',ps:[['pulse.level','Level',0,1,.01,''],['pulse.freq','Start pitch',20,5000,0,'Hz','log'],['pulse.duty','Duty',.02,.98,.01,''],['pulse.sweep','Period sweep',-2,2,.01,'ticks/cycle'],['pulse.mode','Sweep end',['one','loop','bounce']],['pulse.span','Sweep range',1,400,1,'ticks']]},
+ {id:'noise',u:'U5',t:'LFSR noise',tog:'noise.on',ps:[['noise.level','Level',0,1,.01,''],['noise.clock','Shift clock',30,24000,0,'Hz','log'],['noise.glide','Clock glide',-8,8,.1,'oct/s'],['noise.taps','Register',[[7,'7-bit (metallic)'],[15,'15-bit (hiss)']]]]},
+ {id:'env',u:'U6',t:'Volume',ps:[['env.a','Attack',0,1000,1,'ms'],['env.h','Hold',0,3000,5,'ms'],['env.d','Decay',0,4000,5,'ms'],['env.steps','Volume steps',0,32,1,'']]},
+ {id:'rep',u:'U7',t:'Repeat',ps:[['rep.n','Repeats',1,16,1,'×'],['rep.gap','Interval',10,1000,5,'ms'],['rep.fade','Fade per repeat',.1,1,.01,''],['rep.semi','Transpose per repeat',-12,12,1,'st']]}
+];
+const get=k=>k.split('.').reduce((o,x)=>o[x],patch);
+const set=(k,v)=>{const a=k.split('.');let o=patch;while(a.length>1)o=o[a.shift()];o[a[0]]=v};
+const fmt=(v,step,unit)=>{if(unit==='Hz'||unit==='ticks'&&step>=1)return Math.round(v)+' '+unit;if(unit==='')return(+v).toFixed(2);const d=step>=1?0:step>=.1?1:2;return(+v).toFixed(d)+(unit?' '+unit:'')};
+const binds=[];
+function build(){const B=$('#board');B.innerHTML='';binds.length=0;
+ for(const P of PANELS){const ch=document.createElement('div');ch.className='chip';ch.dataset.id=P.id;
+  const h=document.createElement('h2');h.innerHTML=`<div><span>${P.u}</span>${P.t}</div>`;
+  if(P.tog){const sw=document.createElement('input');sw.type='checkbox';sw.className='sw';sw.id='sw-'+P.id;sw.setAttribute('aria-label',P.t+' on');
+   sw.addEventListener('change',()=>{set(P.tog,sw.checked?1:0);changed()});h.append(sw);binds.push(()=>{sw.checked=!!get(P.tog);ch.classList.toggle('off',!sw.checked)})}
+  ch.append(h);
+  for(const [k,label,a,b,step,unit,log] of P.ps){const row=document.createElement('div');row.className='ctl';const id='c-'+k.replace('.','-');
+   const lb=document.createElement('label');lb.htmlFor=id;lb.textContent=label;const out=document.createElement('output');row.append(lb,out);
+   if(Array.isArray(a)){const sel=document.createElement('select');sel.id=id;
+    a.forEach(o=>{const op=document.createElement('option');const [v,t]=Array.isArray(o)?o:[o,o==='one'?'Hold at limit':o==='loop'?'Jump back':'Bounce'];op.value=v;op.textContent=t;sel.append(op)});
+    sel.addEventListener('change',()=>{const v=sel.value;set(k,typeof get(k)==='number'?+v:v);changed()});row.append(sel);binds.push(()=>{sel.value=String(get(k))})}
+   else{const r=document.createElement('input');r.type='range';r.id=id;
+    if(log){r.min=0;r.max=1000;r.step=1}else{r.min=a;r.max=b;r.step=step}
+    const toV=x=>log?a*Math.pow(b/a,x/1000):+x,fromV=v=>log?Math.round(Math.log(v/a)/Math.log(b/a)*1000):v;
+    r.addEventListener('input',()=>{let v=toV(r.value);if(log)v=Math.round(v*10)/10;set(k,v);out.textContent=fmt(v,step||1,unit);changed()});
+    row.append(r);binds.push(()=>{const v=get(k);r.value=fromV(v);out.textContent=fmt(v,step||1,unit)})}
+   ch.append(row)}
+  if(P.table){const c=document.createElement('canvas');c.id='tbl';c.setAttribute('aria-label','Wavetable: drag to draw');ch.append(c);
+   const sh=document.createElement('div');sh.className='shapes';
+   Object.keys(SH).forEach(n=>{const bt=document.createElement('button');bt.type='button';bt.textContent=n;bt.addEventListener('click',()=>{patch.tone.table=SH[n]();changed();drawTable()});sh.append(bt)});
+   ch.append(sh);tableEvents(c)}
+  B.append(ch)}
+ sync()}
+function sync(){binds.forEach(f=>f());$('#name').value=patch.name;drawTable()}
+
+/* ---------- wavetable editor ---------- */
+function tableEvents(c){let down=false;
+ const paint=e=>{const r=c.getBoundingClientRect();const i=Math.max(0,Math.min(31,Math.floor((e.clientX-r.left)/r.width*32)));const v=Math.max(0,Math.min(255,Math.round((1-(e.clientY-r.top)/r.height)*255)));patch.tone.table[i]=v;drawTable();changed()};
+ c.addEventListener('pointerdown',e=>{down=true;try{c.setPointerCapture(e.pointerId)}catch(_){}paint(e)});
+ c.addEventListener('pointermove',e=>{if(down)paint(e)});
+ c.addEventListener('pointerup',()=>down=false);c.addEventListener('pointercancel',()=>down=false)}
+function fit(c){const r=c.getBoundingClientRect(),d=Math.min(devicePixelRatio||1,2);c.width=Math.max(1,Math.round(r.width*d));c.height=Math.max(1,Math.round(r.height*d));return [c.getContext('2d'),r.width,r.height,d]}
+function drawTable(){const c=$('#tbl');if(!c)return;const [x,w,h,d]=fit(c);x.setTransform(d,0,0,d,0,0);x.clearRect(0,0,w,h);
+ x.strokeStyle='#1d4b36';x.beginPath();x.moveTo(0,h/2);x.lineTo(w,h/2);x.stroke();
+ const bw=w/32;patch.tone.table.forEach((v,i)=>{const y=(1-v/255)*h;x.fillStyle='rgba(140,255,180,.18)';x.fillRect(i*bw,Math.min(y,h/2),bw-1,Math.abs(h/2-y));x.fillStyle='#8cffb4';x.fillRect(i*bw,y-1,bw-1,2)})}
+
+/* ---------- scope ---------- */
+let Q=new Int16Array(1),cursor=0;
+function drawScope(){const ov=$('#ov'),zm=$('#zm');
+ let [x,w,h,d]=fit(ov);x.setTransform(d,0,0,d,0,0);x.fillStyle='#04130c';x.fillRect(0,0,w,h);
+ x.strokeStyle='#1d4b36';x.beginPath();x.moveTo(0,h/2);x.lineTo(w,h/2);x.stroke();
+ const n=Q.length,per=n/w;x.fillStyle='#8cffb4';
+ for(let px=0;px<w;px++){let mn=127,mx=-128;const a=Math.floor(px*per),b=Math.max(a+1,Math.floor((px+1)*per));for(let i=a;i<b&&i<n;i++){const v=Q[i];if(v<mn)mn=v;if(v>mx)mx=v}
+  if(mx<mn)continue;const y1=h/2-mx/128*(h/2-4),y2=h/2-mn/128*(h/2-4);x.fillRect(px,y1,1,Math.max(1,y2-y1))}
+ const ZW=Math.min(n,Math.max(64,Math.round(patch.rate*.02)));cursor=Math.min(cursor,Math.max(0,n-ZW));
+ x.strokeStyle='#d9b45a';x.strokeRect(cursor/per+.5,.5,Math.max(2,ZW/per),h-1);
+ x.fillStyle='#93b39e';x.font='10px "Azeret Mono",monospace';x.fillText(patch.length.toFixed(2)+' s',w-48,12);
+ [x,w,h,d]=fit(zm);x.setTransform(d,0,0,d,0,0);x.fillStyle='#04130c';x.fillRect(0,0,w,h);
+ x.strokeStyle='#8cffb4';x.lineWidth=1.25;x.beginPath();const sx=w/ZW;
+ for(let i=0;i<ZW;i++){const v=Q[cursor+i]||0,y=h/2-v/128*(h/2-6);i?x.lineTo(i*sx,y):x.moveTo(0,y);x.lineTo((i+1)*sx,y)}x.stroke();
+ x.fillStyle='#93b39e';x.fillText(`zoom ${ZW} ticks · ${(ZW/patch.rate*1000).toFixed(1)} ms`,8,12)}
+$('#ov').addEventListener('pointerdown',e=>{const r=e.currentTarget.getBoundingClientRect();const ZW=Math.min(Q.length,Math.max(64,Math.round(patch.rate*.02)));cursor=Math.max(0,Math.round((e.clientX-r.left)/r.width*Q.length-ZW/2));drawScope()});
+
+function readout(){const R=patch.rate,t=patch.tone,pl=patch.pulse;const tp=Math.max(2,Math.round(R/t.freq)),pp=Math.max(2,Math.round(R/pl.freq));
+ const peak=Q.reduce((m,v)=>Math.max(m,Math.abs(v)),0);
+ $('#ro').innerHTML=`<span>DAC <b>${R} Hz · ${patch.bits}-bit</b></span><span>Wavetable period <b>${tp} ticks</b> → ${(R/tp).toFixed(1)} Hz</span><span>Pulse period <b>${pp} ticks</b> → ${(R/pp).toFixed(1)} Hz</span><span>Peak <b>${peak>=127?'clipping':Math.round(peak/1.28)+'%'}</b></span>`}
+
+/* ---------- change handling ---------- */
+let pend=false;
+function changed(){if(pend)return;pend=true;requestAnimationFrame(()=>{pend=false;Q=render(patch,0);drawScope();readout();binds.forEach(f=>f());
+ const j=JSON.stringify(patch,null,1);$('#json').value=j;try{localStorage.setItem('dac8-patch',j)}catch(e){}})}
+addEventListener('resize',()=>{drawScope();drawTable()});
+
+/* ---------- presets / randomize ---------- */
+const ps=$('#preset');PRESETS.forEach((p,i)=>{const o=document.createElement('option');o.value=i;o.textContent=p.name;ps.append(o)});
+const cur=PRESETS.findIndex(p=>p.name===patch.name);ps.value=cur>=0?cur:'';
+if(cur<0){const o=document.createElement('option');o.value='';o.textContent='Your patch';o.id='custom';ps.prepend(o);ps.value=''}
+ps.addEventListener('change',()=>{if(ps.value==='')return;patch=clone(PRESETS[+ps.value]);sync();changed();trigger(0)});
+$('#name').addEventListener('input',e=>{patch.name=e.target.value||'Untitled';changed()});
+const rr=(a,b)=>a+Math.random()*(b-a),pick=a=>a[Math.floor(Math.random()*a.length)],lg=(a,b)=>a*Math.pow(b/a,Math.random());
+$('#rand').addEventListener('click',()=>{const p=clone(DEF);p.name='Random '+Math.floor(Math.random()*256).toString(16).toUpperCase().padStart(2,'0');
+ p.rate=pick([4000,6000,8000,11025,11025,16000]);p.bits=pick([8,8,8,6,5,4]);p.smooth=Math.round(lg(2000,16000));p.length=+rr(.3,1.8).toFixed(2);
+ p.tone={on:Math.random()<.8?1:0,level:+rr(.5,1).toFixed(2),freq:Math.round(lg(60,3000)),sweep:+rr(-1.2,1.2).toFixed(2),mode:pick(['one','loop','bounce']),span:Math.round(lg(4,300)),warble:Math.random()<.3?+rr(0,6).toFixed(1):0,table:SH[pick(Object.keys(SH))]()};
+ p.pulse={on:Math.random()<.35?1:0,level:+rr(.3,.8).toFixed(2),freq:Math.round(lg(40,2000)),duty:+rr(.1,.9).toFixed(2),sweep:+rr(-.8,.8).toFixed(2),mode:pick(['one','loop','bounce']),span:Math.round(lg(2,200))};
+ p.noise={on:Math.random()<.35?1:0,level:+rr(.3,1).toFixed(2),clock:Math.round(lg(200,12000)),glide:+rr(-4,2).toFixed(1),taps:pick([7,15])};
+ if(!p.tone.on&&!p.pulse.on&&!p.noise.on)p.tone.on=1;
+ p.env={a:Math.round(rr(0,60)),h:Math.round(rr(0,600)),d:Math.round(rr(100,1400)),steps:pick([0,4,8,16,16])};
+ p.rep=Math.random()<.3?{n:Math.round(rr(2,6)),gap:Math.round(rr(60,250)),fade:+rr(.5,1).toFixed(2),semi:pick([0,0,3,5,7,-5,12])}:clone(DEF.rep);
+ patch=p;markCustom();sync();changed();trigger(0)});
+function markCustom(){if(!$('#custom')){const o=document.createElement('option');o.value='';o.textContent='Your patch';o.id='custom';ps.prepend(o)}ps.value=''}
+$('#board').addEventListener('input',()=>{if(ps.value!=='')markCustom()});
+$('#board').addEventListener('click',e=>{if(e.target.closest('.shapes'))markCustom()});
+
+/* ---------- keyboard ---------- */
+const kb=$('#kb'),NAMES=['C','C♯','D','D♯','E','F','F♯','G','G♯','A','A♯','B'];const BLK=[1,3,6,8,10];
+const keyEls={};let wi=0;const whites=[];
+for(let n=-12;n<=12;n++){const pc=((n%12)+12)%12;if(!BLK.includes(pc)){const k=document.createElement('div');k.className='w';k.dataset.n=n;if(pc===0)k.textContent='C'+(4+Math.floor(n/12));kb.append(k);keyEls[n]=k;whites.push(n);wi++}}
+for(let n=-12;n<=12;n++){const pc=((n%12)+12)%12;if(BLK.includes(pc)){const k=document.createElement('div');k.className='b';k.dataset.n=n;const left=whites.indexOf(n-1)+1;k.style.left=`calc(${left/whites.length*100}% - ${100/whites.length*.3}%)`;k.style.width=`${100/whites.length*.6}%`;kb.append(k);keyEls[n]=k}}
+const flash=n=>{const k=keyEls[n];if(!k)return;k.classList.add('on');setTimeout(()=>k.classList.remove('on'),140)};
+kb.addEventListener('pointerdown',e=>{const k=e.target.closest('[data-n]');if(!k)return;e.preventDefault();const n=+k.dataset.n;trigger(n);flash(n)});
+const KM={KeyZ:-12,KeyS:-11,KeyX:-10,KeyD:-9,KeyC:-8,KeyV:-7,KeyG:-6,KeyB:-5,KeyH:-4,KeyN:-3,KeyJ:-2,KeyM:-1,KeyQ:0,Digit2:1,KeyW:2,Digit3:3,KeyE:4,KeyR:5,Digit5:6,KeyT:7,Digit6:8,KeyY:9,Digit7:10,KeyU:11,KeyI:12};
+addEventListener('keydown',e=>{if(e.repeat||e.metaKey||e.ctrlKey||e.altKey)return;const tg=e.target.tagName;if(tg==='INPUT'&&e.target.type==='text'||tg==='TEXTAREA')return;
+ if(e.code==='Space'&&tg!=='BUTTON'&&tg!=='SELECT'){e.preventDefault();trigger(0);flash(0);return}
+ if(KM[e.code]!==undefined&&tg!=='SELECT'){trigger(KM[e.code]);flash(KM[e.code])}});
+$('#play').addEventListener('click',()=>{trigger(0);flash(0)});
+$('#stop').addEventListener('click',stopAll);
+
+/* ---------- export / import ---------- */
+function toast(t){const el=$('#toast');el.textContent=t;el.hidden=false;clearTimeout(toast.t);toast.t=setTimeout(()=>el.hidden=true,2600)}
+function wav(data,rate,bits){const bps=bits/8,n=data.length,buf=new ArrayBuffer(44+n*bps),d=new DataView(buf),w=(o,s)=>{for(let i=0;i<4;i++)d.setUint8(o+i,s.charCodeAt(i))};
+ w(0,'RIFF');d.setUint32(4,36+n*bps,true);w(8,'WAVE');w(12,'fmt ');d.setUint32(16,16,true);d.setUint16(20,1,true);d.setUint16(22,1,true);d.setUint32(24,rate,true);d.setUint32(28,rate*bps,true);d.setUint16(32,bps,true);d.setUint16(34,bits,true);w(36,'data');d.setUint32(40,n*bps,true);
+ if(bits===8)for(let i=0;i<n;i++)d.setUint8(44+i,data[i]+128);else for(let i=0;i<n;i++)d.setInt16(44+2*i,Math.max(-32768,Math.min(32767,Math.round(data[i]*32767))),true);
+ return new Uint8Array(buf)}
+const CRC=(()=>{const t=new Uint32Array(256);for(let n=0;n<256;n++){let c=n;for(let k=0;k<8;k++)c=c&1?0xEDB88320^(c>>>1):c>>>1;t[n]=c}return u=>{let c=~0;for(let i=0;i<u.length;i++)c=t[(c^u[i])&255]^(c>>>8);return(~c)>>>0}})();
+function zip(files){const parts=[],cen=[];let off=0;const te=new TextEncoder();
+ for(const f of files){const nm=te.encode(f.name),crc=CRC(f.data),sz=f.data.length;
+  const h=new DataView(new ArrayBuffer(30));h.setUint32(0,0x04034b50,true);h.setUint16(4,20,true);h.setUint16(12,0x21,true);h.setUint32(14,crc,true);h.setUint32(18,sz,true);h.setUint32(22,sz,true);h.setUint16(26,nm.length,true);
+  parts.push(new Uint8Array(h.buffer),nm,f.data);
+  const c=new DataView(new ArrayBuffer(46));c.setUint32(0,0x02014b50,true);c.setUint16(4,20,true);c.setUint16(6,20,true);c.setUint16(14,0x21,true);c.setUint32(16,crc,true);c.setUint32(20,sz,true);c.setUint32(24,sz,true);c.setUint16(28,nm.length,true);c.setUint32(42,off,true);
+  cen.push(new Uint8Array(c.buffer),nm);off+=30+nm.length+sz}
+ const cs=cen.reduce((a,b)=>a+b.length,0),e=new DataView(new ArrayBuffer(22));e.setUint32(0,0x06054b50,true);e.setUint16(8,files.length,true);e.setUint16(10,files.length,true);e.setUint32(12,cs,true);e.setUint32(16,off,true);
+ return new Blob([...parts,...cen,new Uint8Array(e.buffer)])}
+const slug=()=>(patch.name||'patch').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'')||'patch';
+let DL=null;
+(async()=>{try{DL=window.claude&&window.claude.use?await window.claude.use('downloads'):null}catch(e){DL=null}if(DL){$('#exp').hidden=false;$('#savep').hidden=false}})();
+async function save(filename,data){try{await DL.save({filename,data});toast('Saved '+filename)}catch(e){const c=e&&e.code;
+ if(c==='declined')return;if(c==='rate_limited')toast('A save prompt is already open');else{toast('Saving is unavailable here. Use Copy patch instead.');$('#exp').hidden=$('#savep').hidden=true}}}
+$('#exp').addEventListener('click',()=>{const q=render(patch,0),f=upsample(q,patch.rate,patch.smooth),s=slug();
+ save(s+'.zip',zip([{name:`${s}_dac_${patch.rate}hz_8bit.wav`,data:wav(q,patch.rate,8)},{name:`${s}_44k_16bit.wav`,data:wav(f,OUT,16)},{name:`${s}.json`,data:new TextEncoder().encode(JSON.stringify(patch,null,1))}]))});
+$('#savep').addEventListener('click',()=>save(slug()+'.json',JSON.stringify(patch,null,1)));
+$('#loadb').addEventListener('click',()=>$('#loadf').click());
+$('#loadf').addEventListener('change',e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{try{patch=fill(JSON.parse(r.result));markCustom();sync();changed();toast('Loaded '+patch.name)}catch(err){toast('That file is not a DAC-8 patch (JSON could not be read)')}};r.readAsText(f);e.target.value=''});
+$('#copy').addEventListener('click',()=>{const t=JSON.stringify(patch,null,1);const fb=()=>{const d=document.querySelector('details');d.open=true;const ta=$('#json');ta.focus();ta.select();toast('Selected the patch JSON. Copy it from the box.')};
+ try{navigator.clipboard.writeText(t).then(()=>toast('Patch copied'),fb)}catch(e){fb()}});
+$('#json').addEventListener('paste',e=>{e.preventDefault();const t=(e.clipboardData||window.clipboardData).getData('text');try{patch=fill(JSON.parse(t));markCustom();sync();changed();toast('Pasted '+patch.name)}catch(err){toast('Pasted text is not valid patch JSON')}});
+$('#json').removeAttribute('readonly');$('#json').addEventListener('keydown',e=>{if(!(e.metaKey||e.ctrlKey))e.preventDefault()});
+
+build();changed();
+})();
+</script>
+</body>
+</html>

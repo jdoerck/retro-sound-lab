@@ -1,0 +1,327 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Discrete Board Workbench</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Azeret+Mono:wght@400;500;700&family=Saira+Stencil+One&display=swap">
+<style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;font:14px/1.4 system-ui,-apple-system,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style>
+</head>
+<body>
+<script>/* Local shim: inside claude.ai artifacts window.claude.use() provides capabilities.
+Outside it, give the page a 'downloads' capability that saves via a normal link; 'sample' (Claude calls) stays unavailable,
+so pages fall back to their built-in rules. */
+if(!window.claude){window.claude={use:async n=>n==='downloads'?{save:async({filename,data})=>{const b=data instanceof Blob?data:new Blob([data]);const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=filename;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),4000);return{status:'saved'}}}:null}}</script>
+<style>
+/* Layout: the board laid flat — event monitor and control panel on top, power rail, then one silkscreened block per sound circuit with its parts and bend points */
+:root{
+  --mask:#0a2218; --mask2:#0e2d20; --trace:#1d4b36; --silk:#efe9d6; --silkdim:#93b39e;
+  --pad:#d9b45a; --led:#ff5a3c; --phos:#8cffb4; --env:#ffd166;
+  --display:"Saira Stencil One","Arial Black",system-ui,sans-serif;
+  --mono:"Azeret Mono",ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  color-scheme:dark;
+}
+html,body{min-height:100%}
+body{background:var(--mask);color:var(--silk);font:13px/1.5 var(--mono);
+  background-image:repeating-linear-gradient(90deg,transparent 0 63px,rgba(29,75,54,.35) 63px 64px),repeating-linear-gradient(0deg,transparent 0 63px,rgba(29,75,54,.25) 63px 64px)}
+.wrap{max-width:1180px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:20px 40px;display:grid;gap:18px}
+header{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:12px 24px}
+h1{margin:0;font:400 clamp(28px,5.6vw,46px)/1 var(--display);letter-spacing:.02em}
+h1 small{display:block;font:500 10px/1.6 var(--mono);letter-spacing:.18em;color:var(--silkdim);text-transform:uppercase;margin-top:6px}
+.bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+select,button{font:500 12px var(--mono);color:var(--silk);background:var(--mask2);border:1px solid var(--trace);border-radius:2px;padding:8px 10px}
+button{cursor:pointer;touch-action:manipulation}
+button:hover{border-color:var(--silkdim)}
+button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid var(--phos);outline-offset:2px}
+button[aria-pressed="true"]{background:var(--led);border-color:var(--led);color:var(--silk)}
+#rec[aria-pressed="true"]{background:var(--led)}
+.mon{border:1px solid var(--trace);background:#04130c}
+#lm{display:block;width:100%;height:200px}
+.monbar{display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center;justify-content:space-between;padding:8px 12px;border-top:1px solid var(--trace);font-size:11px;color:var(--silkdim)}
+.tb{display:flex;gap:4px}
+.tb button{padding:4px 8px;font-size:11px}
+.tb button[aria-pressed="true"]{background:var(--silk);color:var(--mask);border-color:var(--silk)}
+.panel{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px}
+.panel button{padding:14px 10px;font-size:12px;font-weight:700;letter-spacing:.06em;text-align:left;display:grid;gap:2px;touch-action:none}
+.panel button kbd{font:500 10px var(--mono);color:var(--silkdim);letter-spacing:0}
+.panel button[aria-pressed="true"] kbd,.panel button.on kbd{color:var(--silk)}
+.panel button.on{background:var(--pad);border-color:var(--pad);color:var(--mask)}
+.panel button.on kbd{color:var(--mask)}
+.rail{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px 24px;border:1px solid var(--trace);padding:12px 14px;background:rgba(14,45,32,.5)}
+.board{display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:14px;align-items:start}
+.chip{border:1px solid var(--silkdim);border-radius:2px;padding:12px 14px 14px;position:relative;background:rgba(14,45,32,.7);display:grid;gap:10px;min-width:0}
+.chip::before{content:"";position:absolute;top:-1px;left:50%;width:22px;height:9px;margin-left:-11px;border:1px solid var(--silkdim);border-top:0;border-radius:0 0 11px 11px;background:var(--mask)}
+.chip.modded{border-color:var(--pad)}
+.chip h2{margin:0;display:flex;justify-content:space-between;align-items:center;gap:8px;font:700 11px var(--mono);letter-spacing:.14em;text-transform:uppercase}
+.chip h2 span{color:var(--pad);margin-right:8px}
+.chip h2 em{font-style:normal;font-weight:500;color:var(--phos);letter-spacing:.04em;text-transform:none}
+.chip h2 em.mod{color:var(--pad)}
+.chip .stock{padding:4px 8px;font-size:10px}
+.ctl{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 10px;align-items:center}
+.ctl label,.ctl .lbl{font-size:11px;color:var(--silkdim)}
+.ctl output{font-size:11px;font-variant-numeric:tabular-nums;text-align:right;display:flex;align-items:center;gap:8px;justify-content:flex-end}
+.ctl output.mod{color:var(--pad)}
+.ctl input[type=range]{grid-column:1/-1}
+.res{width:46px;height:12px;flex:none}
+.cap{width:16px;height:14px;flex:none}
+input[type=range]{-webkit-appearance:none;appearance:none;height:22px;background:transparent;margin:0;width:100%}
+input[type=range]::-webkit-slider-runnable-track{height:2px;background:var(--trace)}
+input[type=range]::-moz-range-track{height:2px;background:var(--trace)}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;margin-top:-6px;border-radius:50%;background:var(--pad);border:2px solid var(--mask);box-shadow:0 0 0 1px var(--pad)}
+input[type=range]::-moz-range-thumb{width:12px;height:12px;border-radius:50%;background:var(--pad);border:2px solid var(--mask)}
+.bends{display:grid;gap:6px;border-top:1px dashed var(--trace);padding-top:10px}
+.bends b{font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--pad);font-weight:500}
+.bend{display:grid;grid-template-columns:auto minmax(0,1fr);gap:8px;align-items:start;background:transparent;border:0;padding:0;text-align:left;font-size:11px;color:var(--silk);cursor:pointer}
+.bend::before{content:"";width:28px;height:14px;border-radius:7px;border:1px solid var(--trace);background:var(--mask2);margin-top:1px;box-sizing:border-box}
+.bend[aria-pressed="true"]{background:transparent;border:0}
+.bend[aria-pressed="true"]::before{background:var(--led);border-color:var(--led)}
+.bend small{display:block;color:var(--silkdim);font-size:10px;line-height:1.4}
+.note{font-size:11px;color:var(--silkdim);margin:0;max-width:72ch}
+#toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--silk);color:var(--mask);padding:8px 14px;font-size:12px;border-radius:2px;z-index:5;max-width:calc(100% - 32px)}
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>Discrete Board Workbench<small>Transistor-and-RC game sound circuits · in the style of late-1970s vector arcade boards</small></h1>
+    <div class="bar">
+      <select id="preset" aria-label="Board version"></select>
+      <button id="bend" type="button">Bend randomly</button>
+      <button id="stockAll" type="button">Restore all stock parts</button>
+    </div>
+  </header>
+
+  <section class="mon" aria-label="Circuit monitor">
+    <canvas id="lm"></canvas>
+    <div class="monbar"><span id="mread">Press a control to power the board.</span><div class="tb" id="tb" role="group" aria-label="Timebase"></div></div>
+  </section>
+
+  <section>
+    <div class="panel" id="panel"></div>
+    <p class="note" style="margin-top:8px">Heartbeat and saucer latch on and off; thrust sounds while held. Keys are shown on each control.</p>
+  </section>
+
+  <section class="rail" id="rail"></section>
+
+  <section class="board" id="board"></section>
+
+  <section class="bar">
+    <button id="rec" type="button" aria-pressed="false">Record</button>
+    <span class="note" id="recro">Records up to 30 seconds of whatever you play, then offers it as a WAV.</span>
+    <button id="copy" type="button">Copy board settings</button>
+  </section>
+  <p class="note">Each circuit's timing follows the usual RC rule of thumb (about 0.7 × R × C for oscillator periods, R × C for decays), so part swaps change sounds the way they would on a bench. These are original circuits written for this tool, not a copy of any game's schematic.</p>
+</div>
+<div id="toast" hidden></div>
+
+<script>
+(()=>{
+const $=s=>document.querySelector(s);
+/* ===== circuits ===== */
+const DSP=`const k1=(t,sr)=>1-Math.exp(-1/(Math.max(1e-5,t)*sr));
+class BOARD{
+ constructor(sr){this.sr=sr;this.p=null;this.dt=0;
+  this.b={on:0,acc:0,alt:0,env:0,ph:0,lp:0,speed:1};this.f={env:0,ph:0};this.t={g:0,env:0,l1:0,l2:0,na:0,n:0};
+  this.x={env:0,act:0,l1:0,l2:0,na:0,n:0,size:1,chain:0,amp:1};this.s={on:0,big:1,env:0,lph:0,ph:0,lp:0};this.c={env:0,ph:0,t:0,left:0,step:0};
+  this.dc=0;this.dx=0;this.N=400;this.tb=Math.max(1,Math.round(sr*2/400));this.tc=0;this.wi=0;this.T=[0,1,2,3,4,5,6].map(()=>new Float32Array(400));this.mx=new Float32Array(7)}
+ sh(o,clk){o.na+=clk/this.sr;if(o.na>=1){o.na-=Math.floor(o.na);o.n=Math.random()*2-1}return o.n}
+ next(){const p=this.p;if(!p)return 0;const sr=this.sr,sv=p.supply/12;
+  this.dt+=(Math.random()-.5)*4e-5*p.drift;this.dt*=.99995;const fm=Math.sqrt(sv)*(1+this.dt*3);
+  const out=[0,0,0,0,0,0];
+  {const P=p.beat,b=this.b;if(b.on){const T=.7*P.rT*P.cT*b.speed;b.acc+=1/sr;if(b.acc>=T){b.acc=0;b.alt^=1;b.env=1;if(P.ramp)b.speed=Math.max(.3,b.speed*.96)}}
+   const f=(P.single||!b.alt?1/(.7*P.rA*P.cTone):1/(.7*P.rB*P.cTone))*fm*(.6+.4*b.env);b.ph+=f/sr;b.ph-=Math.floor(b.ph);
+   const sq=b.ph<.5?1:-1;b.lp+=(sq-b.lp)*Math.min(1,2*Math.PI*f*3/sr);b.env-=b.env*k1(P.rD*P.cD,sr);out[0]=b.lp*b.env*P.level}
+  {const P=p.fire,f=this.f;f.env-=f.env*k1(P.rD*P.cD,sr);const f0=fm/(.7*P.rV*P.cV),fc=f0*(P.rev?1.3-.7*f.env:.3+.7*f.env);f.ph+=fc/sr;f.ph-=Math.floor(f.ph);
+   let s=f.ph<P.duty?1:-1;if(P.bleed)s=s*.6+(Math.random()*2-1)*.5;out[1]=s*Math.pow(f.env,.7)*P.level*.7}
+  {const P=p.thrust,t=this.t;t.env+=(t.g-t.env)*k1(t.g?P.rA*P.cA:P.rA*P.cA*2,sr);let clk=fm/(.7*P.rN*P.cN);if(P.beatClock)clk*=1+this.b.env*3;
+   const n=this.sh(t,clk),g=Math.min(.95,2*Math.PI/(P.rF*P.cF)/sr),res=P.boost?.85:.1;t.l1+=g*(Math.tanh(n-res*4*t.l2)-t.l1);t.l2+=g*(t.l1-t.l2);out[2]=t.l2*t.env*P.level*2.2}
+  {const P=p.boom,x=this.x,cap=[P.cS,P.cM,P.cL][x.size];x.env-=x.env*k1(P.rE*cap,sr);if(P.leaky&&x.act)x.env=Math.max(x.env,.16);
+   if(P.chain&&x.act&&x.env<.22&&x.chain<4){x.chain++;x.amp*=.55;x.env=.9}
+   const n=this.sh(x,fm/(.7*P.rN*P.cN)),fc=(1/(2*Math.PI*P.rF*P.cF))*(.12+1.6*x.env),g=Math.min(.95,2*Math.PI*fc/sr);x.l1+=g*(n-x.l1);x.l2+=g*(x.l1-x.l2);out[3]=x.l2*x.env*x.amp*P.level*3.2}
+  {const P=p.saucer,s=this.s;s.env+=(s.on-s.env)*k1(.02,sr);const cL=s.big?P.cL:P.cL2,cV=s.big?P.cV:P.cV2;s.lph+=fm/(.7*P.rL*cL)/sr;s.lph-=Math.floor(s.lph);
+   let lfo=1-4*Math.abs(s.lph-.5);if(P.stuck)lfo=lfo>0?1:-1;const f=fm/(.7*P.rV*cV)*(1+P.depth*lfo+(P.cross?this.x.env*1.2:0));s.ph+=Math.max(0,f)/sr;s.ph-=Math.floor(s.ph);
+   const sq=s.ph<.5?1:-1;s.lp+=(sq-s.lp)*.35;out[4]=s.lp*s.env*P.level*.6}
+  {const P=p.chime,c=this.c;if(c.left>0){c.t+=1/sr;if(c.t>=.7*P.rI*P.cI){c.t=0;c.left--;c.step++;c.env=1}}c.env-=c.env*k1(P.rD*P.cD,sr);
+   const f=fm/(.7*P.rT*P.cT)*(P.ladder?Math.pow(2,c.step*2/12):1);c.ph+=f/sr;c.ph-=Math.floor(c.ph);out[5]=(1-4*Math.abs(c.ph-.5))*c.env*P.level*.7}
+  let sum=(out[0]+out[1]+out[2]+out[3]+out[4]+out[5])*sv;const yd=sum-this.dx+.997*this.dc;this.dx=sum;this.dc=yd;const y=Math.tanh(yd*p.master);
+  for(let i=0;i<6;i++){const a=Math.abs(out[i]);if(a>this.mx[i])this.mx[i]=a}if(Math.abs(y)>Math.abs(this.mx[6]))this.mx[6]=y;
+  if(++this.tc>=this.tb){this.tc=0;for(let i=0;i<7;i++){this.T[i][this.wi]=this.mx[i];this.mx[i]=0}this.wi=(this.wi+1)%this.N}
+  return y}
+ cmd(d){if(d.beat!==undefined){this.b.on=d.beat;if(d.beat){this.b.speed=1;this.b.acc=1e9}}
+  if(d.fire){this.f.env=1;this.f.ph=0}if(d.thrust!==undefined)this.t.g=d.thrust;
+  if(d.boom!==undefined){this.x.size=d.boom;this.x.env=1;this.x.act=1;this.x.chain=0;this.x.amp=1}if(d.boomOff){this.x.act=0}
+  if(d.saucer!==undefined){this.s.on=d.saucer;if(d.big!==undefined)this.s.big=d.big}if(d.chime){this.c.left=Math.round(this.p.chime.n);this.c.t=1e9;this.c.step=-1}}
+}`;
+const BOARD=new Function(DSP+';return BOARD')();
+const WK=DSP+`
+class W extends AudioWorkletProcessor{constructor(){super();this.c=new BOARD(sampleRate);this.n=0;this.rec=false;
+ this.port.onmessage=e=>{const d=e.data;if(d.p)this.c.p=d.p;if(d.tb)this.c.tb=Math.max(1,d.tb|0);if(d.rec!==undefined)this.rec=d.rec;this.c.cmd(d)}}
+ process(i,o){const out=o[0],ch=out[0];for(let k=0;k<ch.length;k++)ch[k]=this.c.next();for(let c=1;c<out.length;c++)out[c].set(ch);
+  if(this.rec)this.port.postMessage({chunk:ch.slice()});
+  if(++this.n%10===0)this.port.postMessage({tr:this.c.T.map(a=>a.slice()),wi:this.c.wi});return true}}
+registerProcessor('board',W);`;
+
+/* ===== parts ===== */
+const E24=[1,1.1,1.2,1.3,1.5,1.6,1.8,2,2.2,2.4,2.7,3,3.3,3.6,3.9,4.3,4.7,5.1,5.6,6.2,6.8,7.5,8.2,9.1],E6=[1,1.5,2.2,3.3,4.7,6.8];
+const RS=[];for(let e=2;e<7;e++)for(const v of E24){const x=+(v*Math.pow(10,e)).toPrecision(3);if(x>=470&&x<=2.2e6)RS.push(x)}
+const CS=[];for(let e=-10;e<-3;e++)for(const v of E6){const x=+(v*Math.pow(10,e)).toPrecision(3);if(x>=1e-9&&x<=4.7e-4)CS.push(x)}
+const fmtR=v=>v>=1e6?(+(v/1e6).toPrecision(3))+' MΩ':v>=1e3?(+(v/1e3).toPrecision(3))+' kΩ':v+' Ω';
+const fmtC=v=>v>=1e-6?(+(v*1e6).toPrecision(3))+' µF':v>=1e-9?(+(v*1e9).toPrecision(3))+' nF':(+(v*1e12).toPrecision(3))+' pF';
+const BAND=['#111','#7a4a1e','#d42a2a','#f07f1a','#f3d225','#2e9e4f','#2a6fd6','#8a4fd0','#8f8f8f','#f4f4f4'];
+function bands(v){const ex=Math.floor(Math.log10(v))-1,d=Math.round(v/Math.pow(10,ex)),a=Math.floor(d/10)%10,b=d%10,m=Math.max(0,Math.min(9,ex));
+ return `<svg class="res" viewBox="0 0 46 12" aria-hidden="true"><path d="M0 6H8M38 6H46" stroke="#93b39e"/><rect x="8" y="1" width="30" height="10" rx="4" fill="#d9c7a0"/>`+[[13,a],[18,b],[23,m]].map(([x,c])=>`<rect x="${x}" y="1" width="3" height="10" fill="${BAND[c]}"/>`).join('')+`<rect x="31" y="1" width="3" height="10" fill="#c9a23a"/></svg>`}
+const capIcon=v=>`<svg class="cap" viewBox="0 0 16 14" aria-hidden="true"><path d="M0 7H6M10 7H16" stroke="#93b39e"/><path d="M6 1V13M10 1V13" stroke="${v>=1e-6?'#4a7bdc':'#d9b45a'}" stroke-width="2"/></svg>`;
+const fHz=f=>f>=1000?(f/1000).toFixed(2)+' kHz':f>=10?f.toFixed(0)+' Hz':f.toFixed(2)+' Hz',fT=t=>t>=1?t.toFixed(2)+' s':(t*1000).toFixed(t>=.01?0:1)+' ms';
+const CARDS=[
+ {id:'beat',u:'U1',t:'Heartbeat',comp:[['rT','R · tempo','r'],['cT','C · tempo','c'],['rA','R · beat 1 pitch','r'],['rB','R · beat 2 pitch','r'],['cTone','C · beat pitch','c'],['rD','R · thump decay','r'],['cD','C · thump decay','c']],
+  num:[['level','Level',0,1,.01]],hacks:[['ramp','Tempo ramp','Each beat makes the next arrive sooner, so the pulse speeds up the longer it runs.'],['single','Short beat 2 to beat 1','Both beats use the same pitch: a plain tick-tock becomes a single thud.']],
+  ro:P=>`${fT(.7*P.rT*P.cT)} per beat · ${fHz(1/(.7*P.rA*P.cTone))}`},
+ {id:'fire',u:'U2',t:'Fire',comp:[['rV','R · oscillator','r'],['cV','C · oscillator','c'],['rD','R · sweep decay','r'],['cD','C · sweep decay','c']],
+  num:[['duty','Pulse width',.05,.95,.01],['level','Level',0,1,.01]],hacks:[['rev','Reverse the sweep diode','Pitch climbs instead of falling.'],['bleed','Noise bleed','Let noise leak onto the oscillator rail for a dirtier shot.']],
+  ro:P=>`${fHz(1/(.7*P.rV*P.cV))} start · ${fT(P.rD*P.cD)} sweep`},
+ {id:'thrust',u:'U3',t:'Thrust',comp:[['rN','R · noise clock','r'],['cN','C · noise clock','c'],['rF','R · low-pass','r'],['cF','C · low-pass','c'],['rA','R · swell','r'],['cA','C · swell','c']],
+  num:[['level','Level',0,1,.01]],hacks:[['boost','Feedback resistor','Add feedback around the filter: a resonant whistle on top of the rumble.'],['beatClock','Tie clock to heartbeat','The heartbeat pulses speed up the noise clock.']],
+  ro:P=>`clock ${fHz(1/(.7*P.rN*P.cN))} · cutoff ${fHz(1/(2*Math.PI*P.rF*P.cF))}`},
+ {id:'boom',u:'U4',t:'Explosion',comp:[['rN','R · noise clock','r'],['cN','C · noise clock','c'],['rF','R · low-pass','r'],['cF','C · low-pass','c'],['rE','R · decay','r'],['cS','C · small','c'],['cM','C · medium','c'],['cL','C · large','c']],
+  num:[['level','Level',0,1,.01]],hacks:[['leaky','Leaky cap','The decay cap never fully drains, leaving a smouldering drone until the next blast.'],['chain','Retrigger loop','A comparator re-fires the blast as it fades: rolling aftershocks.']],
+  ro:P=>`${fT(P.rE*P.cS)} / ${fT(P.rE*P.cM)} / ${fT(P.rE*P.cL)}`},
+ {id:'saucer',u:'U5',t:'Saucer',comp:[['rL','R · warble','r'],['cL','C · warble (large)','c'],['cL2','C · warble (small)','c'],['rV','R · siren','r'],['cV','C · siren (large)','c'],['cV2','C · siren (small)','c']],
+  num:[['depth','Warble depth',0,.9,.01],['level','Level',0,1,.01]],hacks:[['stuck','Stuck warble (square)','The warble flips between two pitches instead of sweeping.'],['cross','Cross-couple explosion','Explosions bend the saucer siren upward.']],
+  ro:P=>`large ${fHz(1/(.7*P.rV*P.cV))} · small ${fHz(1/(.7*P.rV*P.cV2))}`},
+ {id:'chime',u:'U6',t:'Bonus chime',comp:[['rT','R · tone','r'],['cT','C · tone','c'],['rI','R · repeat','r'],['cI','C · repeat','c'],['rD','R · ring','r'],['cD','C · ring','c']],
+  num:[['n','Rings',1,12,1],['level','Level',0,1,.01]],hacks:[['ladder','Detune ladder','Each ring climbs a whole tone: the chime becomes a little fanfare.']],
+  ro:P=>`${fHz(1/(.7*P.rT*P.cT))} · every ${fT(.7*P.rI*P.cI)}`}];
+const STOCK={name:'Stock board',supply:12,drift:0,master:1,
+ beat:{rT:220000,cT:4.7e-6,rA:33000,rB:39000,cTone:4.7e-7,rD:47000,cD:2.2e-6,level:.85,ramp:1,single:0},
+ fire:{rV:10000,cV:1e-7,rD:150000,cD:1e-6,duty:.5,level:.7,rev:0,bleed:0},
+ thrust:{rN:10000,cN:4.7e-8,rF:10000,cF:1e-7,rA:47000,cA:2.2e-6,level:.8,boost:0,beatClock:0},
+ boom:{rN:4700,cN:1e-7,rF:4700,cF:1e-7,rE:100000,cS:4.7e-6,cM:1e-5,cL:2.2e-5,level:.9,leaky:0,chain:0},
+ saucer:{rL:330000,cL:1e-6,cL2:4.7e-7,rV:10000,cV:2.2e-7,cV2:1e-7,depth:.3,level:.6,stuck:0,cross:0},
+ chime:{rT:4700,cT:2.2e-7,rI:47000,cI:2.2e-6,rD:47000,cD:2.2e-6,n:4,level:.7,ladder:0}};
+const clone=o=>JSON.parse(JSON.stringify(o));
+const V=(o)=>{const p=clone(STOCK);for(const k in o){if(typeof o[k]==='object')Object.assign(p[k],o[k]);else p[k]=o[k]}return p};
+const VERSIONS=[V({}),
+ V({name:'Dying battery',supply:7.5,drift:.8}),
+ V({name:'Deep space mod',beat:{cTone:1e-6,cD:4.7e-6},boom:{cL:4.7e-5,leaky:1},saucer:{cL:2.2e-6,cV:4.7e-7},thrust:{cF:2.2e-7}}),
+ V({name:'Chirp mod',fire:{cV:4.7e-8,rev:1},chime:{ladder:1,n:6,cT:1e-7},saucer:{stuck:1,cL:2.2e-7}}),
+ V({name:'Feedback mess',thrust:{boost:1,beatClock:1},boom:{chain:1},saucer:{cross:1},drift:.5})];
+function sanitize(o){const p=clone(STOCK);if(!o||typeof o!=='object')return p;const n=(v,a,b,d)=>{v=+v;return isFinite(v)?Math.max(a,Math.min(b,v)):d};
+ if(o.name)p.name=String(o.name).slice(0,40);p.supply=n(o.supply,5,15,12);p.drift=n(o.drift,0,1,0);p.master=n(o.master,0,1.5,1);
+ const snap=(v,list)=>list.reduce((a,b)=>Math.abs(Math.log(b/v))<Math.abs(Math.log(a/v))?b:a);
+ for(const c of CARDS){const s=o[c.id];if(!s||typeof s!=='object')continue;for(const [k,,t] of c.comp){const v=+s[k];if(isFinite(v)&&v>0)p[c.id][k]=snap(v,t==='r'?RS:CS)}
+  for(const [k,,a,b] of c.num)if(s[k]!==undefined)p[c.id][k]=n(s[k],a,b,p[c.id][k]);for(const [k] of c.hacks)p[c.id][k]=s[k]?1:0}return p}
+let patch;try{const s=localStorage.getItem('discrete-board');patch=s?sanitize(JSON.parse(s)):null}catch(e){}if(!patch)patch=clone(STOCK);
+
+/* ===== audio ===== */
+let AC=null,node=null,local=null,TR=null,WI=0,starting=null,recBuf=null,recLen=0;
+async function audio(){if(AC){if(AC.state==='suspended')AC.resume();return}if(starting)return starting;starting=(async()=>{
+ try{AC=new (window.AudioContext||window.webkitAudioContext)()}catch(e){toast('Audio is unavailable in this browser');return}
+ try{await AC.audioWorklet.addModule(URL.createObjectURL(new Blob([WK],{type:'application/javascript'})));node=new AudioWorkletNode(AC,'board',{outputChannelCount:[2]});
+  node.port.onmessage=e=>{const d=e.data;if(d.tr){TR=d.tr;WI=d.wi}if(d.chunk)addRec(d.chunk)}}
+ catch(e){local=new BOARD(AC.sampleRate);node=AC.createScriptProcessor(1024,0,2);node.onaudioprocess=ev=>{const a=ev.outputBuffer.getChannelData(0),b=ev.outputBuffer.getChannelData(1);for(let i=0;i<a.length;i++)a[i]=b[i]=local.next();TR=local.T;WI=local.wi;if(recBuf)addRec(a.slice())}}
+ const g=AC.createGain();g.gain.value=.8;node.connect(g).connect(AC.destination);send({p:patch,tb:tbSamples()});if(AC.state==='suspended')AC.resume()})();return starting}
+function send(m){if(!node)return;if(local){if(m.p)local.p=JSON.parse(JSON.stringify(m.p));if(m.tb)local.tb=m.tb;local.cmd(m)}else node.port.postMessage(m)}
+async function cmd(m){await audio();send(m)}
+
+/* ===== control panel ===== */
+const state={beat:0,saucer:0,big:1};
+const PAN=[['beat','Heartbeat','1','toggle'],['fire','Fire','Space','tap'],['thrust','Thrust','↑ or W','hold'],['boomS','Small blast','J','tap'],['boomM','Medium blast','K','tap'],['boomL','Large blast','L','tap'],['saucerB','Large saucer','2','toggle'],['saucerS','Small saucer','3','toggle'],['chime','Bonus chime','C','tap']];
+const btn={};
+PAN.forEach(([id,l,key,kind])=>{const b=document.createElement('button');b.type='button';b.innerHTML=`${l}<kbd>${key}${kind==='hold'?' · hold':kind==='toggle'?' · on/off':''}</kbd>`;if(kind==='toggle')b.setAttribute('aria-pressed','false');$('#panel').append(b);btn[id]=b;
+ if(kind==='hold'){b.addEventListener('pointerdown',e=>{e.preventDefault();try{b.setPointerCapture(e.pointerId)}catch(_){}press(id,true)});const up=()=>press(id,false);b.addEventListener('pointerup',up);b.addEventListener('pointercancel',up);
+  b.addEventListener('keydown',e=>{if((e.key===' '||e.key==='Enter')&&!e.repeat){e.preventDefault();press(id,true)}});b.addEventListener('keyup',e=>{if(e.key===' '||e.key==='Enter')press(id,false)})}
+ else b.addEventListener('click',()=>press(id,true))});
+function flash(id){const b=btn[id];b.classList.add('on');setTimeout(()=>b.classList.remove('on'),140)}
+function press(id,down){
+ if(id==='beat'&&down){state.beat^=1;btn.beat.setAttribute('aria-pressed',String(!!state.beat));cmd({beat:state.beat})}
+ else if(id==='fire'&&down){flash(id);cmd({fire:1})}
+ else if(id==='thrust'){btn.thrust.classList.toggle('on',down);cmd({thrust:down?1:0})}
+ else if(id.startsWith('boom')&&down){flash(id);cmd({boom:{boomS:0,boomM:1,boomL:2}[id]})}
+ else if(id.startsWith('saucer')&&down){const big=id==='saucerB'?1:0;state.saucer=state.saucer&&state.big===big?0:1;state.big=big;
+  btn.saucerB.setAttribute('aria-pressed',String(!!(state.saucer&&big)));btn.saucerS.setAttribute('aria-pressed',String(!!(state.saucer&&!big)));cmd({saucer:state.saucer,big})}
+ else if(id==='chime'&&down){flash(id);cmd({chime:1})}}
+const KEYS={Digit1:'beat',Space:'fire',ArrowUp:'thrust',KeyW:'thrust',KeyJ:'boomS',KeyK:'boomM',KeyL:'boomL',Digit2:'saucerB',Digit3:'saucerS',KeyC:'chime'};
+const typing=t=>t.tagName==='TEXTAREA'||t.tagName==='SELECT'||(t.tagName==='INPUT'&&t.type!=='range');
+addEventListener('keydown',e=>{const id=KEYS[e.code];if(!id||e.repeat||e.metaKey||e.ctrlKey||e.altKey||typing(e.target))return;if(e.code==='Space'&&e.target.tagName==='BUTTON')return;e.preventDefault();press(id,true)});
+addEventListener('keyup',e=>{if(KEYS[e.code]==='thrust')press('thrust',false)});
+addEventListener('blur',()=>press('thrust',false));
+
+/* ===== power rail + cards ===== */
+const binds=[];
+function rangeRow(label,min,max,st,get,set,fmt,isStock){const r=document.createElement('div');r.className='ctl';const id='i'+Math.random().toString(36).slice(2,8);
+ r.innerHTML=`<label for="${id}">${label}</label><output></output><input type="range" id="${id}" min="${min}" max="${max}" step="${st}">`;const inp=r.querySelector('input'),o=r.querySelector('output');
+ inp.addEventListener('input',()=>{set(+inp.value);changed()});binds.push(()=>{inp.value=get();o.innerHTML=fmt();o.classList.toggle('mod',isStock?!isStock():false)});return r}
+function partRow(card,k,label,t){const list=t==='r'?RS:CS,P=()=>patch[card],stock=STOCK[card][k];
+ const r=rangeRow(label,0,list.length-1,1,()=>Math.max(0,list.indexOf(P()[k])),v=>P()[k]=list[v],()=>{const v=P()[k],mod=v!==stock;return(t==='r'?bands(v)+fmtR(v):capIcon(v)+fmtC(v))+(mod?` <span title="Stock value">(${t==='r'?fmtR(stock):fmtC(stock)})</span>`:'')},()=>P()[k]===stock);
+ const inp=r.querySelector('input');inp.setAttribute('aria-valuetext','');binds.push(()=>inp.setAttribute('aria-valuetext',(t==='r'?fmtR:fmtC)(P()[k])));return r}
+const modCount=id=>{const c=CARDS.find(x=>x.id===id);let n=0;for(const [k] of c.comp)if(patch[id][k]!==STOCK[id][k])n++;for(const [k] of c.hacks)if(patch[id][k])n++;return n};
+function build(){const R=$('#rail');R.innerHTML='';
+ R.append(rangeRow('Supply voltage',5,15,.1,()=>patch.supply,v=>patch.supply=v,()=>patch.supply.toFixed(1)+' V'+(patch.supply!==12?' (stock 12 V)':''),()=>patch.supply===12));
+ R.append(rangeRow('Temperature drift',0,1,.01,()=>patch.drift,v=>patch.drift=v,()=>patch.drift?Math.round(patch.drift*100)+'%':'stable',()=>patch.drift===0));
+ R.append(rangeRow('Output amp',0,1.5,.01,()=>patch.master,v=>patch.master=v,()=>Math.round(patch.master*100)+'%'));
+ const B=$('#board');B.innerHTML='';
+ for(const c of CARDS){const ch=document.createElement('div');ch.className='chip';const h=document.createElement('h2');h.innerHTML=`<div><span>${c.u}</span>${c.t}</div>`;
+  const em=document.createElement('em'),rs=document.createElement('button');rs.type='button';rs.className='stock';rs.textContent='Stock parts';
+  rs.addEventListener('click',()=>{patch[c.id]=clone(STOCK[c.id]);changed()});const hr=document.createElement('div');hr.className='bar';hr.style.gap='8px';hr.append(em,rs);h.append(hr);ch.append(h);
+  const ro=document.createElement('p');ro.className='note';ch.append(ro);
+  binds.push(()=>{const n=modCount(c.id);ch.classList.toggle('modded',n>0);em.textContent=n?`${n} mod${n>1?'s':''}`:'stock';em.classList.toggle('mod',n>0);rs.hidden=!n;ro.textContent=c.ro(patch[c.id])});
+  for(const [k,l,t] of c.comp)ch.append(partRow(c.id,k,l,t));
+  for(const [k,l,a,b,st] of c.num)ch.append(rangeRow(l,a,b,st,()=>patch[c.id][k],v=>patch[c.id][k]=v,()=>st>=1?String(patch[c.id][k]):Math.round(patch[c.id][k]*100)+'%'));
+  const bd=document.createElement('div');bd.className='bends';bd.innerHTML='<b>Bend points</b>';
+  for(const [k,l,d] of c.hacks){const b=document.createElement('button');b.type='button';b.className='bend';b.innerHTML=`<span>${l}<small>${d}</small></span>`;
+   b.addEventListener('click',()=>{patch[c.id][k]^=1;changed()});binds.push(()=>b.setAttribute('aria-pressed',String(!!patch[c.id][k])));bd.append(b)}
+  ch.append(bd);B.append(ch)}}
+let saveT=0;
+function changed(){send({p:patch});binds.forEach(f=>f());markVersion();clearTimeout(saveT);saveT=setTimeout(()=>{try{localStorage.setItem('discrete-board',JSON.stringify(patch))}catch(e){}},300)}
+const ps=$('#preset');VERSIONS.forEach((v,i)=>{const o=document.createElement('option');o.value=i;o.textContent=v.name;ps.append(o)});
+function markVersion(){const s=JSON.stringify(patch),i=VERSIONS.findIndex(v=>JSON.stringify(v)===s);if(i>=0){ps.value=i;return}
+ if(!$('#custom')){const o=document.createElement('option');o.value='';o.id='custom';o.textContent='Your modded board';ps.prepend(o)}ps.value=''}
+ps.addEventListener('change',()=>{if(ps.value==='')return;patch=clone(VERSIONS[+ps.value]);changed()});
+$('#stockAll').addEventListener('click',()=>{patch=clone(STOCK);changed();toast('All parts restored to stock')});
+$('#bend').addEventListener('click',()=>{const p=clone(patch);p.name='Bent board';const c=CARDS[Math.floor(Math.random()*CARDS.length)],cs=[...CARDS].sort(()=>Math.random()-.5).slice(0,3);
+ for(const card of cs){const parts=card.comp.filter(()=>Math.random()<.35);for(const [k,,t] of parts){const list=t==='r'?RS:CS,i=list.indexOf(p[card.id][k]);p[card.id][k]=list[Math.max(0,Math.min(list.length-1,i+Math.round((Math.random()*2-1)*(t==='c'?4:12))))]}
+  for(const [k] of card.hacks)if(Math.random()<.3)p[card.id][k]^=1}
+ if(Math.random()<.3)p.supply=+(7+Math.random()*7).toFixed(1);if(Math.random()<.3)p.drift=+(Math.random()*.8).toFixed(2);patch=p;changed();toast('Board bent. Try the controls.')});
+
+/* ===== monitor ===== */
+const TBS=[['200 ms',.2],['2 s',2],['6 s',6]];let tbi=1;const tbSamples=()=>Math.max(1,Math.round((AC?AC.sampleRate:44100)*TBS[tbi][1]/400));
+TBS.forEach(([l],i)=>{const b=document.createElement('button');b.type='button';b.textContent=l;b.addEventListener('click',()=>{tbi=i;[...$('#tb').children].forEach((x,j)=>x.setAttribute('aria-pressed',String(j===i)));send({tb:tbSamples()})});$('#tb').append(b)});
+[...$('#tb').children].forEach((x,j)=>x.setAttribute('aria-pressed',String(j===tbi)));
+const lm=$('#lm'),ROWS=['Heartbeat','Fire','Thrust','Explosion','Saucer','Chime','Output'];
+function drawMon(){requestAnimationFrame(drawMon);const r=lm.getBoundingClientRect(),d=Math.min(devicePixelRatio||1,2);if(lm.width!==Math.round(r.width*d)){lm.width=Math.round(r.width*d);lm.height=Math.round(r.height*d)}
+ const x=lm.getContext('2d');x.setTransform(d,0,0,d,0,0);const w=r.width,h=r.height,L=82,rh=h/7;x.clearRect(0,0,w,h);x.font='10px "Azeret Mono",monospace';x.textBaseline='middle';
+ ROWS.forEach((n,i)=>{const y0=i*rh;x.fillStyle='#93b39e';x.fillText(n,8,y0+rh/2);x.strokeStyle='#123a29';x.beginPath();x.moveTo(L,y0+rh-.5);x.lineTo(w,y0+rh-.5);x.stroke();if(!TR)return;
+  const a=TR[i],N=a.length;if(i<6){x.fillStyle=i===3?'#ffd166':'#8cffb4';for(let k=0;k<N;k++){const v=Math.min(1,a[(WI+k)%N]*1.3);if(v<.01)continue;const X=L+k/(N-1)*(w-L-8);x.fillRect(X,y0+rh-2-v*(rh-5),Math.max(1,(w-L)/N),v*(rh-5))}}
+  else{x.strokeStyle='#efe9d6';x.lineWidth=1;x.beginPath();for(let k=0;k<N;k++){const v=a[(WI+k)%N],X=L+k/(N-1)*(w-L-8),Y=y0+rh/2-Math.max(-1,Math.min(1,v))*(rh/2-2);k?x.lineTo(X,Y):x.moveTo(X,Y)}x.stroke()}});
+ if(TR)$('#mread').textContent=`Supply ${patch.supply.toFixed(1)} V · ${CARDS.reduce((a,c)=>a+modCount(c.id),0)} mods on the board`}
+requestAnimationFrame(drawMon);
+
+/* ===== record ===== */
+const MAXS=30;
+function addRec(ch){if(!recBuf)return;const sr=AC.sampleRate;if(recLen+ch.length>recBuf.length){stopRec();return}recBuf.set(ch,recLen);recLen+=ch.length;
+ if((recLen/ch.length)%40<1)$('#recro').textContent=`Recording ${(recLen/sr).toFixed(1)} s of ${MAXS}…`}
+$('#rec').addEventListener('click',async()=>{if(recBuf){stopRec();return}await audio();if(!AC)return;recBuf=new Float32Array(Math.round(AC.sampleRate*MAXS));recLen=0;$('#rec').setAttribute('aria-pressed','true');$('#rec').textContent='Stop recording';send({rec:true})});
+let DL=null;(async()=>{try{DL=window.claude&&window.claude.use?await window.claude.use('downloads'):null}catch(e){DL=null}})();
+async function stopRec(){if(!recBuf)return;send({rec:false});const sr=AC.sampleRate,data=recBuf.subarray(0,recLen);recBuf=null;$('#rec').setAttribute('aria-pressed','false');$('#rec').textContent='Record';
+ if(recLen<sr*.1){$('#recro').textContent='Nothing long enough was recorded.';return}$('#recro').textContent=`Recorded ${(recLen/sr).toFixed(1)} s.`;
+ if(!DL){$('#recro').textContent+=' Saving files is unavailable in this view.';return}
+ const s=(patch.name||'board').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'')||'board';
+ try{await DL.save({filename:s+'.zip',data:zip([{name:s+'.wav',data:wav16(data,sr)},{name:s+'.json',data:new TextEncoder().encode(JSON.stringify(patch,null,1))}])});toast('Saved '+s+'.zip')}
+ catch(e){const c=e&&e.code;if(c!=='declined')toast(c==='rate_limited'?'A save prompt is already open':'Saving is unavailable here.')}}
+function wav16(f,rate){const n=f.length,buf=new ArrayBuffer(44+n*2),d=new DataView(buf),w=(o,s)=>{for(let i=0;i<4;i++)d.setUint8(o+i,s.charCodeAt(i))};
+ w(0,'RIFF');d.setUint32(4,36+n*2,true);w(8,'WAVE');w(12,'fmt ');d.setUint32(16,16,true);d.setUint16(20,1,true);d.setUint16(22,1,true);d.setUint32(24,rate,true);d.setUint32(28,rate*2,true);d.setUint16(32,2,true);d.setUint16(34,16,true);w(36,'data');d.setUint32(40,n*2,true);
+ for(let i=0;i<n;i++)d.setInt16(44+2*i,Math.max(-32768,Math.min(32767,Math.round(f[i]*32767))),true);return new Uint8Array(buf)}
+const CRC=(()=>{const t=new Uint32Array(256);for(let n=0;n<256;n++){let c=n;for(let k=0;k<8;k++)c=c&1?0xEDB88320^(c>>>1):c>>>1;t[n]=c}return u=>{let c=~0;for(let i=0;i<u.length;i++)c=t[(c^u[i])&255]^(c>>>8);return(~c)>>>0}})();
+function zip(files){const parts=[],cen=[];let off=0;const te=new TextEncoder();for(const f of files){const nm=te.encode(f.name),crc=CRC(f.data),sz=f.data.length;
+ const h=new DataView(new ArrayBuffer(30));h.setUint32(0,0x04034b50,true);h.setUint16(4,20,true);h.setUint16(12,0x21,true);h.setUint32(14,crc,true);h.setUint32(18,sz,true);h.setUint32(22,sz,true);h.setUint16(26,nm.length,true);parts.push(new Uint8Array(h.buffer),nm,f.data);
+ const c=new DataView(new ArrayBuffer(46));c.setUint32(0,0x02014b50,true);c.setUint16(4,20,true);c.setUint16(6,20,true);c.setUint16(14,0x21,true);c.setUint32(16,crc,true);c.setUint32(20,sz,true);c.setUint32(24,sz,true);c.setUint16(28,nm.length,true);c.setUint32(42,off,true);cen.push(new Uint8Array(c.buffer),nm);off+=30+nm.length+sz}
+ const cs=cen.reduce((a,b)=>a+b.length,0),e=new DataView(new ArrayBuffer(22));e.setUint32(0,0x06054b50,true);e.setUint16(8,files.length,true);e.setUint16(10,files.length,true);e.setUint32(12,cs,true);e.setUint32(16,off,true);return new Blob([...parts,...cen,new Uint8Array(e.buffer)])}
+function toast(t){const el=$('#toast');el.textContent=t;el.hidden=false;clearTimeout(toast.t);toast.t=setTimeout(()=>el.hidden=true,2600)}
+$('#copy').addEventListener('click',()=>{const t=JSON.stringify(patch,null,1);try{navigator.clipboard.writeText(t).then(()=>toast('Board settings copied'),()=>toast('Copy was blocked here'))}catch(e){toast('Copy was blocked here')}});
+
+build();changed();
+})();
+</script>
+</body>
+</html>

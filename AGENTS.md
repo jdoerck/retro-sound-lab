@@ -9,10 +9,10 @@ The owner (J) is an experienced developer and electronic musician. The long-term
 AudioWorklet needs a secure context, so serve over localhost instead of opening files directly:
 
 ```sh
-python3 -m http.server 8000      # then open http://localhost:8000/
+python3 -m http.server 8000      # then open http://localhost:8000/docs/
 ```
 
-`index.html` links every page. Run `node tools/check.mjs` after edits; it syntax-checks every inline script and confirms each engine string compiles. For deeper checks, extract the `DSP` class and run `next()` for a few seconds per preset, watching for NaN and clipping.
+`docs/index.html` links every page. Run `node tools/check.mjs` after edits; it syntax-checks every inline script and confirms each engine string compiles. For deeper checks, extract the `DSP` class and run `next()` for a few seconds per preset, watching for NaN and clipping.
 
 ## Layout
 

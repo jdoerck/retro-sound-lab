@@ -4,9 +4,9 @@ Playable browser instruments modelled on early sound chips and circuits (SN76477
 
 ```sh
 python3 -m http.server 8000
-# open http://localhost:8000/
+# open http://localhost:8000/docs/
 ```
 
-Every page is one self-contained HTML file using the Web Audio API. Start with `index.html`. See `CLAUDE.md` for architecture and conventions and `docs/ROADMAP.md` for what's next.
+Every page is one self-contained HTML file using the Web Audio API. Start with `docs/index.html`. See `CLAUDE.md` for architecture and conventions and `docs/ROADMAP.md` for what's next.
 
 All circuits, presets, songs and artwork are original; no ROMs or samples from any game or instrument are included.

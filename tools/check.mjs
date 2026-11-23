@@ -5,7 +5,7 @@ import {join} from 'node:path';
 const root = new URL('..', import.meta.url).pathname;
 const files = [];
 (function walk(d){ for (const f of readdirSync(d)) { const p = join(d, f);
-  if (statSync(p).isDirectory()) { if (!['node_modules', '.git', 'tools', 'docs'].includes(f)) walk(p); }
+  if (statSync(p).isDirectory()) { if (!['node_modules', '.git', 'tools'].includes(f)) walk(p); }
   else if (f.endsWith('.html')) files.push(p); } })(root);
 let bad = 0;
 for (const f of files) {

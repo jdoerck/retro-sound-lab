@@ -19,7 +19,7 @@
 
 - *Datasheet × comic print* (CMYK misregistration, halftones, timing diagrams): sketched, not adopted.
 - *Culture-inspired / future interface* → **Tessel**: the interface recedes, a touchable sound-form, a possibility-space field, intent with transparent parameter diffs, generated patch glyphs, branching history.
-- *Faders* and *full PCB* variants of the shift register, kept in `experiments/`.
+- *Faders* and *full PCB* variants of the shift register, kept in `docs/experiments/`.
 - The current family look is the green-board workbench (see CLAUDE.md).
 
 ## Published artifacts
@@ -28,22 +28,22 @@ Private claude.ai artifacts holding the same pages (useful for sharing from a ph
 
 | Page | File | Artifact |
 |---|---|---|
-| Horizon Warden | `games/horizon-warden.html` | https://claude.ai/artifact/TYx5VXCxrg2fcPmqU1K6Xi |
-| DAC-8 Workbench | `instruments/dac8-workbench.html` | https://claude.ai/artifact/7yTgAVanLHYZZQ4uxDAzbx |
-| CSG Workbench | `instruments/csg-workbench.html` | https://claude.ai/artifact/6vbp3wCkB58ifMD4a51dRp |
-| Speech Workbench | `instruments/speech-workbench.html` | https://claude.ai/artifact/MwNnNfcxoT1WfBWSrgBABj |
-| Poly Counter Workbench | `instruments/poly-counter-workbench.html` | https://claude.ai/artifact/BKJrjMcKaPv367ab8S6cHp |
-| Wavetable Workbench | `instruments/wavetable-workbench.html` | https://claude.ai/artifact/XSAVKkoQvUCrNnLAbKRDYY |
-| Scanline Workbench | `instruments/scanline-workbench.html` | https://claude.ai/artifact/2tqf65sDcmmMHZmujADME3 |
-| Discrete Board Workbench | `instruments/discrete-board-workbench.html` | https://claude.ai/artifact/JwtvgbSU6Mtm7r6YcDTuj1 |
-| Night Circuit Drums | `instruments/night-circuit-drums.html` | https://claude.ai/artifact/P4M4J7AVwyLqCWMJd9Fose |
-| No One | `instruments/no-one.html` | https://claude.ai/artifact/8dLy7rjZgX1SZhsLCRd9og |
-| Beeper Workbench | `instruments/beeper-workbench.html` | https://claude.ai/artifact/VkXejtXJhNKgDPRep6NeNf |
-| Shift Register Workbench | `instruments/shift-register-workbench.html` | https://claude.ai/artifact/3aTm22AWopTxzNrj4RoG9H |
-| Divide-Down Strings | `instruments/divide-down-strings.html` | https://claude.ai/artifact/AFXWZFVPkphTNWmfX4Dn3h |
-| Frame Tracker | `sequencers/frame-tracker.html` | https://claude.ai/artifact/NUuQZrnFNqPTjAtX5PMzi8 |
-| Register Tracker | `sequencers/register-tracker.html` | https://claude.ai/artifact/BdAoT3NTVnLYofSmA6Q9YZ |
-| Pair Sequencer | `sequencers/pair-sequencer.html` | https://claude.ai/artifact/8SeJWDuqsgrDBULPuztgLe |
-| Tessel | `experiments/tessel.html` | https://claude.ai/artifact/AyVbgd92D3MWxVAMsDpNxd |
-| Shift Register Faders | `experiments/shift-register-faders.html` | https://claude.ai/artifact/Xru9mgXP9BTBYEfnQYMnxp |
-| Shift Register PCB | `experiments/shift-register-pcb.html` | https://claude.ai/artifact/Df1sJij6broA4XZHwaezNb |
+| Horizon Warden | `docs/games/horizon-warden.html` | https://claude.ai/artifact/TYx5VXCxrg2fcPmqU1K6Xi |
+| DAC-8 Workbench | `docs/instruments/dac8-workbench.html` | https://claude.ai/artifact/7yTgAVanLHYZZQ4uxDAzbx |
+| CSG Workbench | `docs/instruments/csg-workbench.html` | https://claude.ai/artifact/6vbp3wCkB58ifMD4a51dRp |
+| Speech Workbench | `docs/instruments/speech-workbench.html` | https://claude.ai/artifact/MwNnNfcxoT1WfBWSrgBABj |
+| Poly Counter Workbench | `docs/instruments/poly-counter-workbench.html` | https://claude.ai/artifact/BKJrjMcKaPv367ab8S6cHp |
+| Wavetable Workbench | `docs/instruments/wavetable-workbench.html` | https://claude.ai/artifact/XSAVKkoQvUCrNnLAbKRDYY |
+| Scanline Workbench | `docs/instruments/scanline-workbench.html` | https://claude.ai/artifact/2tqf65sDcmmMHZmujADME3 |
+| Discrete Board Workbench | `docs/instruments/discrete-board-workbench.html` | https://claude.ai/artifact/JwtvgbSU6Mtm7r6YcDTuj1 |
+| Night Circuit Drums | `docs/instruments/night-circuit-drums.html` | https://claude.ai/artifact/P4M4J7AVwyLqCWMJd9Fose |
+| No One | `docs/instruments/no-one.html` | https://claude.ai/artifact/8dLy7rjZgX1SZhsLCRd9og |
+| Beeper Workbench | `docs/instruments/beeper-workbench.html` | https://claude.ai/artifact/VkXejtXJhNKgDPRep6NeNf |
+| Shift Register Workbench | `docs/instruments/shift-register-workbench.html` | https://claude.ai/artifact/3aTm22AWopTxzNrj4RoG9H |
+| Divide-Down Strings | `docs/instruments/divide-down-strings.html` | https://claude.ai/artifact/AFXWZFVPkphTNWmfX4Dn3h |
+| Frame Tracker | `docs/sequencers/frame-tracker.html` | https://claude.ai/artifact/NUuQZrnFNqPTjAtX5PMzi8 |
+| Register Tracker | `docs/sequencers/register-tracker.html` | https://claude.ai/artifact/BdAoT3NTVnLYofSmA6Q9YZ |
+| Pair Sequencer | `docs/sequencers/pair-sequencer.html` | https://claude.ai/artifact/8SeJWDuqsgrDBULPuztgLe |
+| Tessel | `docs/experiments/tessel.html` | https://claude.ai/artifact/AyVbgd92D3MWxVAMsDpNxd |
+| Shift Register Faders | `docs/experiments/shift-register-faders.html` | https://claude.ai/artifact/Xru9mgXP9BTBYEfnQYMnxp |
+| Shift Register PCB | `docs/experiments/shift-register-pcb.html` | https://claude.ai/artifact/Df1sJij6broA4XZHwaezNb |

@@ -7,11 +7,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 No build step, package manager, linter or test runner. Everything is plain HTML/JS.
 
 ```sh
-python3 -m http.server 8000      # serve at http://localhost:8000/ (needed: AudioWorklet requires a secure context)
+python3 -m http.server 8000      # serve at http://localhost:8000/docs/ (needed: AudioWorklet requires a secure context)
 node tools/check.mjs             # syntax-check every inline <script> and every DSP engine string in all .html files
 ```
 
-`tools/check.mjs` has no per-file mode; it always checks the whole tree (skipping `tools/`, `docs/`, `node_modules/`, `.git/`). Run it after any edit. There is no single-test equivalent. For deeper engine checks, extract the `DSP` class and call `next()` for a few seconds per preset, watching for NaN and clipping (manual, no script exists yet).
+`tools/check.mjs` has no per-file mode; it always checks the whole tree (skipping `tools/`, `node_modules/`, `.git/`). Run it after any edit. There is no single-test equivalent. For deeper engine checks, extract the `DSP` class and call `next()` for a few seconds per preset, watching for NaN and clipping (manual, no script exists yet).
 
 ## Architecture
 
@@ -43,4 +43,4 @@ Each instrument is one self-contained HTML file. The shared pattern is in the en
 - `README.md` — short overview and run instructions.
 - `AGENTS.md` — the longer architecture, conventions and known-limits document. Read it for detail beyond this file.
 - `docs/ROADMAP.md` — planned builds, plugin port notes, and the table of published claude.ai artifacts. Update the artifact table when a page's public artifact changes.
-- `index.html` — hub page linking every instrument, sequencer, experiment and game. Add new pages here.
+- `docs/index.html` — hub page linking every instrument, sequencer, experiment and game. Add new pages here.

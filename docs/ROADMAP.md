@@ -37,7 +37,6 @@ Private claude.ai artifacts holding the same pages (useful for sharing from a ph
 | Scanline Workbench | `docs/instruments/scanline-workbench.html` | https://claude.ai/artifact/2tqf65sDcmmMHZmujADME3 |
 | Discrete Board Workbench | `docs/instruments/discrete-board-workbench.html` | https://claude.ai/artifact/JwtvgbSU6Mtm7r6YcDTuj1 |
 | Night Circuit Drums | `docs/instruments/night-circuit-drums.html` | https://claude.ai/artifact/P4M4J7AVwyLqCWMJd9Fose |
-| No One | `docs/instruments/no-one.html` | https://claude.ai/artifact/8dLy7rjZgX1SZhsLCRd9og |
 | Beeper Workbench | `docs/instruments/beeper-workbench.html` | https://claude.ai/artifact/VkXejtXJhNKgDPRep6NeNf |
 | Shift Register Workbench | `docs/instruments/shift-register-workbench.html` | https://claude.ai/artifact/3aTm22AWopTxzNrj4RoG9H |
 | Divide-Down Strings | `docs/instruments/divide-down-strings.html` | https://claude.ai/artifact/AFXWZFVPkphTNWmfX4Dn3h |
